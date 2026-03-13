@@ -2,7 +2,7 @@ use web_sys::HtmlTextAreaElement;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-use super::api;
+use super::hooks::{use_create_tweet, use_toggle_like};
 use super::types::Tweet;
 use crate::components::icons;
 use crate::router::Route;
@@ -15,25 +15,15 @@ pub struct TweetCardProps {
 #[function_component(TweetCard)]
 pub fn tweet_card(props: &TweetCardProps) -> Html {
     let tweet = &props.tweet;
-    let liked = use_state(|| tweet.liked);
-    let like_count = use_state(|| tweet.likes);
+    let (liked, like_count, on_like_click) =
+        use_toggle_like(&tweet.id, tweet.liked, tweet.likes);
 
-    let on_like_click = {
-        let liked = liked.clone();
-        let like_count = like_count.clone();
-        let tweet_id = tweet.id.clone();
+    let on_like_wrapper = {
+        let on_like_click = on_like_click.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             e.stop_propagation();
-            let liked = liked.clone();
-            let like_count = like_count.clone();
-            let tweet_id = tweet_id.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(resp) = api::toggle_like(&tweet_id).await {
-                    liked.set(resp.liked);
-                    like_count.set(resp.count);
-                }
-            });
+            on_like_click.emit(e);
         })
     };
 
@@ -58,7 +48,7 @@ pub fn tweet_card(props: &TweetCardProps) -> Html {
         })
     };
 
-    let heart_class = if *liked {
+    let heart_class = if liked {
         "text-pink-600"
     } else {
         "text-gray-500 hover:text-pink-600"
@@ -88,10 +78,10 @@ pub fn tweet_card(props: &TweetCardProps) -> Html {
                         <icons::RetweetIcon />
                         <span class="text-sm">{ tweet.retweets }</span>
                     </button>
-                    <button onclick={on_like_click}
+                    <button onclick={on_like_wrapper}
                             class={classes!("flex", "items-center", "gap-1", "transition-colors", heart_class)}>
-                        <icons::HeartIcon filled={*liked} />
-                        <span class="text-sm">{ *like_count }</span>
+                        <icons::HeartIcon filled={liked} />
+                        <span class="text-sm">{ like_count }</span>
                     </button>
                 </div>
             </div>
@@ -99,15 +89,10 @@ pub fn tweet_card(props: &TweetCardProps) -> Html {
     }
 }
 
-#[derive(Properties, PartialEq)]
-pub struct ComposeTweetProps {
-    pub on_submit: Callback<Tweet>,
-}
-
 #[function_component(ComposeTweet)]
-pub fn compose_tweet(props: &ComposeTweetProps) -> Html {
+pub fn compose_tweet() -> Html {
     let content = use_state(String::new);
-    let submitting = use_state(|| false);
+    let create_tweet = use_create_tweet();
 
     let on_input = {
         let content = content.clone();
@@ -119,29 +104,14 @@ pub fn compose_tweet(props: &ComposeTweetProps) -> Html {
 
     let on_submit = {
         let content = content.clone();
-        let submitting = submitting.clone();
-        let on_submit = props.on_submit.clone();
+        let create_tweet = create_tweet.clone();
         Callback::from(move |_: MouseEvent| {
             let text = (*content).clone();
-            if text.trim().is_empty() || *submitting {
+            if text.trim().is_empty() || create_tweet.loading {
                 return;
             }
-            let content = content.clone();
-            let submitting = submitting.clone();
-            let on_submit = on_submit.clone();
-            submitting.set(true);
-            wasm_bindgen_futures::spawn_local(async move {
-                match api::create_tweet("current", &text).await {
-                    Ok(tweet) => {
-                        on_submit.emit(tweet);
-                        content.set(String::new());
-                    }
-                    Err(err) => {
-                        log::error!("Failed to create tweet: {}", err);
-                    }
-                }
-                submitting.set(false);
-            });
+            create_tweet.mutate.emit(text);
+            content.set(String::new());
         })
     };
 
@@ -162,9 +132,9 @@ pub fn compose_tweet(props: &ComposeTweetProps) -> Html {
                 />
                 <div class="flex justify-end border-t border-gray-800 pt-3">
                     <button onclick={on_submit}
-                            disabled={is_empty || *submitting}
+                            disabled={is_empty || create_tweet.loading}
                             class="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-5 py-2 rounded-full transition-colors">
-                        { if *submitting { "Posting..." } else { "Post" } }
+                        { if create_tweet.loading { "Posting..." } else { "Post" } }
                     </button>
                 </div>
             </div>

@@ -2,6 +2,7 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::components::layout::Layout;
+use crate::hooks::QueryClientProvider;
 use crate::pages::home_page::HomePage;
 use crate::pages::notifications_page::NotificationsPage;
 use crate::pages::profile_page::ProfilePage;
@@ -25,10 +26,12 @@ fn switch(route: Route) -> Html {
 #[function_component(App)]
 pub fn app() -> Html {
     html! {
-        <BrowserRouter>
-            <Layout>
-                <Switch<Route> render={switch} />
-            </Layout>
-        </BrowserRouter>
+        <QueryClientProvider>
+            <BrowserRouter>
+                <Layout>
+                    <Switch<Route> render={switch} />
+                </Layout>
+            </BrowserRouter>
+        </QueryClientProvider>
     }
 }

@@ -1,8 +1,8 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 
+use super::hooks::use_toggle_like;
 use crate::components::icons;
-use crate::features::feed::api;
 use crate::features::feed::types::Tweet;
 use crate::router::Route;
 
@@ -14,25 +14,8 @@ pub struct TweetDetailProps {
 #[function_component(TweetDetailView)]
 pub fn tweet_detail_view(props: &TweetDetailProps) -> Html {
     let tweet = &props.tweet;
-    let liked = use_state(|| tweet.liked);
-    let like_count = use_state(|| tweet.likes);
-
-    let on_like_click = {
-        let liked = liked.clone();
-        let like_count = like_count.clone();
-        let tweet_id = tweet.id.clone();
-        Callback::from(move |_: MouseEvent| {
-            let liked = liked.clone();
-            let like_count = like_count.clone();
-            let tweet_id = tweet_id.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(resp) = api::toggle_like(&tweet_id).await {
-                    liked.set(resp.liked);
-                    like_count.set(resp.count);
-                }
-            });
-        })
-    };
+    let (liked, like_count, on_like_click) =
+        use_toggle_like(&tweet.id, tweet.liked, tweet.likes);
 
     let navigator = use_navigator().unwrap();
     let profile_id = tweet.user.id.clone();
@@ -44,7 +27,7 @@ pub fn tweet_detail_view(props: &TweetDetailProps) -> Html {
         })
     };
 
-    let heart_class = if *liked {
+    let heart_class = if liked {
         "text-pink-600"
     } else {
         "text-gray-500 hover:text-pink-600"
@@ -72,7 +55,7 @@ pub fn tweet_detail_view(props: &TweetDetailProps) -> Html {
                     { " Retweets" }
                 </span>
                 <span>
-                    <span class="font-bold text-white">{ *like_count }</span>
+                    <span class="font-bold text-white">{ like_count }</span>
                     { " Likes" }
                 </span>
             </div>
@@ -85,7 +68,7 @@ pub fn tweet_detail_view(props: &TweetDetailProps) -> Html {
                 </button>
                 <button onclick={on_like_click}
                         class={classes!("transition-colors", "p-2", heart_class)}>
-                    <icons::HeartIcon filled={*liked} />
+                    <icons::HeartIcon filled={liked} />
                 </button>
             </div>
         </div>
