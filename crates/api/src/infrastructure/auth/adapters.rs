@@ -4,12 +4,14 @@ use argon2::{
 };
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 
-use crate::application::auth::ports::{HashPort, TokenPayload, TokenPort};
+use sha2::{Digest, Sha256};
+
+use crate::application::auth::ports::{PasswordHashPort, TokenHashPort, TokenPayload, TokenPort};
 use crate::domain::error::AppError;
 
 pub struct Argon2Hasher;
 
-impl HashPort for Argon2Hasher {
+impl PasswordHashPort for Argon2Hasher {
     fn hash(&self, password: &str) -> Result<String, AppError> {
         let salt = SaltString::generate(&mut rand::thread_rng());
         let argon2 = Argon2::default();
@@ -36,6 +38,16 @@ impl HashPort for Argon2Hasher {
                 source: None,
             }),
         }
+    }
+}
+
+pub struct Sha256TokenHasher;
+
+impl TokenHashPort for Sha256TokenHasher {
+    fn hash(&self, token: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        format!("{:x}", hasher.finalize())
     }
 }
 

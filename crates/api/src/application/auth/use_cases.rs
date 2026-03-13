@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
-use super::ports::{AuthRepository, HashPort, TokenPort};
+use super::ports::{AuthRepository, PasswordHashPort, TokenHashPort, TokenPort};
 use crate::application::shared::time::Clock;
 use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::application::users::ports::UserRepository;
@@ -13,15 +12,10 @@ pub struct TokenPair {
     pub refresh_token: String,
 }
 
-fn hash_refresh_token(token: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
-
 pub struct Register<'a, U: UnitOfWork> {
     uow: U,
-    hasher: &'a dyn HashPort,
+    password_hasher: &'a dyn PasswordHashPort,
+    token_hasher: &'a dyn TokenHashPort,
     token_port: &'a dyn TokenPort,
     clock: Box<dyn Clock>,
 }
@@ -29,13 +23,15 @@ pub struct Register<'a, U: UnitOfWork> {
 impl<'a, U: UnitOfWork> Register<'a, U> {
     pub fn new(
         uow: U,
-        hasher: &'a dyn HashPort,
+        password_hasher: &'a dyn PasswordHashPort,
+        token_hasher: &'a dyn TokenHashPort,
         token_port: &'a dyn TokenPort,
         clock: impl Clock + 'static,
     ) -> Self {
         Self {
             uow,
-            hasher,
+            password_hasher,
+            token_hasher,
             token_port,
             clock: Box::new(clock),
         }
@@ -56,7 +52,7 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
         }
 
         // Hash password
-        let password_hash = self.hasher.hash(password)?;
+        let password_hash = self.password_hasher.hash(password)?;
 
         // Create user
         let user_id = uuid::Uuid::new_v4().to_string();
@@ -78,7 +74,7 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
         let now = self.clock.now() as usize;
         let access_token = self.token_port.encode(&user_id, now, now + 15 * 60)?;
         let refresh_token = uuid::Uuid::new_v4().to_string();
-        let refresh_hash = hash_refresh_token(&refresh_token);
+        let refresh_hash = self.token_hasher.hash(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
@@ -97,7 +93,8 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
 
 pub struct Login<'a, U: UnitOfWork> {
     uow: U,
-    hasher: &'a dyn HashPort,
+    password_hasher: &'a dyn PasswordHashPort,
+    token_hasher: &'a dyn TokenHashPort,
     token_port: &'a dyn TokenPort,
     clock: Box<dyn Clock>,
 }
@@ -105,13 +102,15 @@ pub struct Login<'a, U: UnitOfWork> {
 impl<'a, U: UnitOfWork> Login<'a, U> {
     pub fn new(
         uow: U,
-        hasher: &'a dyn HashPort,
+        password_hasher: &'a dyn PasswordHashPort,
+        token_hasher: &'a dyn TokenHashPort,
         token_port: &'a dyn TokenPort,
         clock: impl Clock + 'static,
     ) -> Self {
         Self {
             uow,
-            hasher,
+            password_hasher,
+            token_hasher,
             token_port,
             clock: Box::new(clock),
         }
@@ -128,7 +127,7 @@ impl<'a, U: UnitOfWork> Login<'a, U> {
             })?;
 
         // Verify password
-        let valid = self.hasher.verify(password, &identity.password_hash)?;
+        let valid = self.password_hasher.verify(password, &identity.password_hash)?;
         if !valid {
             return Err(AppError::Unauthorized {
                 reason: "Invalid credentials",
@@ -139,7 +138,7 @@ impl<'a, U: UnitOfWork> Login<'a, U> {
         let now = self.clock.now() as usize;
         let access_token = self.token_port.encode(&identity.user_id, now, now + 15 * 60)?;
         let refresh_token = uuid::Uuid::new_v4().to_string();
-        let refresh_hash = hash_refresh_token(&refresh_token);
+        let refresh_hash = self.token_hasher.hash(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
@@ -158,21 +157,28 @@ impl<'a, U: UnitOfWork> Login<'a, U> {
 
 pub struct Refresh<'a, U: UnitOfWork> {
     uow: U,
+    token_hasher: &'a dyn TokenHashPort,
     token_port: &'a dyn TokenPort,
     clock: Box<dyn Clock>,
 }
 
 impl<'a, U: UnitOfWork> Refresh<'a, U> {
-    pub fn new(uow: U, token_port: &'a dyn TokenPort, clock: impl Clock + 'static) -> Self {
+    pub fn new(
+        uow: U,
+        token_hasher: &'a dyn TokenHashPort,
+        token_port: &'a dyn TokenPort,
+        clock: impl Clock + 'static,
+    ) -> Self {
         Self {
             uow,
+            token_hasher,
             token_port,
             clock: Box::new(clock),
         }
     }
 
     pub async fn execute(self, refresh_token: &str) -> Result<TokenPair, AppError> {
-        let token_hash = hash_refresh_token(refresh_token);
+        let token_hash = self.token_hasher.hash(refresh_token);
         let session = self
             .uow
             .auth()
@@ -208,7 +214,7 @@ impl<'a, U: UnitOfWork> Refresh<'a, U> {
         let now = self.clock.now() as usize;
         let access_token = self.token_port.encode(&identity.user_id, now, now + 15 * 60)?;
         let new_refresh_token = uuid::Uuid::new_v4().to_string();
-        let refresh_hash = hash_refresh_token(&new_refresh_token);
+        let refresh_hash = self.token_hasher.hash(&new_refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow

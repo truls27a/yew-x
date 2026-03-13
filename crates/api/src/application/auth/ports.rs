@@ -10,9 +10,13 @@ pub struct TokenPayload {
     pub iat: usize,
 }
 
-pub trait HashPort: Send + Sync {
+pub trait PasswordHashPort: Send + Sync {
     fn hash(&self, password: &str) -> Result<String, AppError>;
     fn verify(&self, password: &str, hash: &str) -> Result<bool, AppError>;
+}
+
+pub trait TokenHashPort: Send + Sync {
+    fn hash(&self, token: &str) -> String;
 }
 
 pub trait TokenPort: Send + Sync {
