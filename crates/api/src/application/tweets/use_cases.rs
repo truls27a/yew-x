@@ -4,9 +4,9 @@ use crate::domain::error::AppError;
 use crate::domain::tweets::entities::Tweet;
 
 #[derive(Clone)]
-pub struct GetTweets;
+pub struct GetTweetsUseCase;
 
-impl GetTweets {
+impl GetTweetsUseCase {
     pub fn new() -> Self {
         Self
     }
@@ -21,9 +21,9 @@ impl GetTweets {
 }
 
 #[derive(Clone)]
-pub struct GetTweet;
+pub struct GetTweetUseCase;
 
-impl GetTweet {
+impl GetTweetUseCase {
     pub fn new() -> Self {
         Self
     }
@@ -46,9 +46,9 @@ impl GetTweet {
 }
 
 #[derive(Clone)]
-pub struct CreateTweet;
+pub struct CreateTweetUseCase;
 
-impl CreateTweet {
+impl CreateTweetUseCase {
     pub fn new() -> Self {
         Self
     }
@@ -75,9 +75,9 @@ impl CreateTweet {
 }
 
 #[derive(Clone)]
-pub struct GetUserTweets;
+pub struct GetUserTweetsUseCase;
 
-impl GetUserTweets {
+impl GetUserTweetsUseCase {
     pub fn new() -> Self {
         Self
     }
@@ -95,9 +95,9 @@ impl GetUserTweets {
 }
 
 #[derive(Clone)]
-pub struct ToggleLike;
+pub struct ToggleLikeUseCase;
 
-impl ToggleLike {
+impl ToggleLikeUseCase {
     pub fn new() -> Self {
         Self
     }

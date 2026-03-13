@@ -12,7 +12,7 @@ pub async fn list_notifications(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<NotificationResponse>>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let notifications = state.get_notifications.execute(uow, &caller.user_id).await?;
+    let notifications = state.get_notifications_use_case.execute(uow, &caller.user_id).await?;
     Ok(Json(
         notifications
             .into_iter()

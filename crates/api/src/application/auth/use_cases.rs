@@ -17,14 +17,14 @@ pub struct TokenPair {
 }
 
 #[derive(Clone)]
-pub struct Register {
+pub struct RegisterUseCase {
     password_hasher: Arc<dyn PasswordHashPort>,
     token_hasher: Arc<dyn TokenHashPort>,
     token_port: Arc<dyn TokenPort>,
     clock: Arc<dyn Clock>,
 }
 
-impl Register {
+impl RegisterUseCase {
     pub fn new(
         password_hasher: Arc<dyn PasswordHashPort>,
         token_hasher: Arc<dyn TokenHashPort>,
@@ -92,14 +92,14 @@ impl Register {
 }
 
 #[derive(Clone)]
-pub struct Login {
+pub struct LoginUseCase {
     password_hasher: Arc<dyn PasswordHashPort>,
     token_hasher: Arc<dyn TokenHashPort>,
     token_port: Arc<dyn TokenPort>,
     clock: Arc<dyn Clock>,
 }
 
-impl Login {
+impl LoginUseCase {
     pub fn new(
         password_hasher: Arc<dyn PasswordHashPort>,
         token_hasher: Arc<dyn TokenHashPort>,
@@ -157,13 +157,13 @@ impl Login {
 }
 
 #[derive(Clone)]
-pub struct Refresh {
+pub struct RefreshUseCase {
     token_hasher: Arc<dyn TokenHashPort>,
     token_port: Arc<dyn TokenPort>,
     clock: Arc<dyn Clock>,
 }
 
-impl Refresh {
+impl RefreshUseCase {
     pub fn new(
         token_hasher: Arc<dyn TokenHashPort>,
         token_port: Arc<dyn TokenPort>,

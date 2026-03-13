@@ -23,19 +23,19 @@ pub struct AppState {
     pub db: DatabaseClient,
     pub token_port: Arc<dyn TokenPort>,
     // Auth
-    pub register: auth_uc::Register,
-    pub login: auth_uc::Login,
-    pub refresh: auth_uc::Refresh,
+    pub register_use_case: auth_uc::RegisterUseCase,
+    pub login_use_case: auth_uc::LoginUseCase,
+    pub refresh_use_case: auth_uc::RefreshUseCase,
     // Tweets
-    pub get_tweets: tweet_uc::GetTweets,
-    pub get_tweet: tweet_uc::GetTweet,
-    pub create_tweet: tweet_uc::CreateTweet,
-    pub get_user_tweets: tweet_uc::GetUserTweets,
-    pub toggle_like: tweet_uc::ToggleLike,
+    pub get_tweets_use_case: tweet_uc::GetTweetsUseCase,
+    pub get_tweet_use_case: tweet_uc::GetTweetUseCase,
+    pub create_tweet_use_case: tweet_uc::CreateTweetUseCase,
+    pub get_user_tweets_use_case: tweet_uc::GetUserTweetsUseCase,
+    pub toggle_like_use_case: tweet_uc::ToggleLikeUseCase,
     // Users
-    pub get_user: user_uc::GetUser,
+    pub get_user_use_case: user_uc::GetUserUseCase,
     // Notifications
-    pub get_notifications: notif_uc::GetNotifications,
+    pub get_notifications_use_case: notif_uc::GetNotificationsUseCase,
 }
 
 #[tokio::main]
@@ -57,26 +57,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         db,
         token_port: token_port.clone(),
-        register: auth_uc::Register::new(
+        register_use_case: auth_uc::RegisterUseCase::new(
             password_hasher.clone(),
             token_hasher.clone(),
             token_port.clone(),
             clock.clone(),
         ),
-        login: auth_uc::Login::new(
+        login_use_case: auth_uc::LoginUseCase::new(
             password_hasher.clone(),
             token_hasher.clone(),
             token_port.clone(),
             clock.clone(),
         ),
-        refresh: auth_uc::Refresh::new(token_hasher.clone(), token_port.clone(), clock.clone()),
-        get_tweets: tweet_uc::GetTweets::new(),
-        get_tweet: tweet_uc::GetTweet::new(),
-        create_tweet: tweet_uc::CreateTweet::new(),
-        get_user_tweets: tweet_uc::GetUserTweets::new(),
-        toggle_like: tweet_uc::ToggleLike::new(),
-        get_user: user_uc::GetUser::new(),
-        get_notifications: notif_uc::GetNotifications::new(),
+        refresh_use_case: auth_uc::RefreshUseCase::new(token_hasher.clone(), token_port.clone(), clock.clone()),
+        get_tweets_use_case: tweet_uc::GetTweetsUseCase::new(),
+        get_tweet_use_case: tweet_uc::GetTweetUseCase::new(),
+        create_tweet_use_case: tweet_uc::CreateTweetUseCase::new(),
+        get_user_tweets_use_case: tweet_uc::GetUserTweetsUseCase::new(),
+        toggle_like_use_case: tweet_uc::ToggleLikeUseCase::new(),
+        get_user_use_case: user_uc::GetUserUseCase::new(),
+        get_notifications_use_case: notif_uc::GetNotificationsUseCase::new(),
     };
 
     let cors = CorsLayer::new()

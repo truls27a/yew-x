@@ -4,9 +4,9 @@ use crate::domain::error::AppError;
 use crate::domain::users::entities::User;
 
 #[derive(Clone)]
-pub struct GetUser;
+pub struct GetUserUseCase;
 
-impl GetUser {
+impl GetUserUseCase {
     pub fn new() -> Self {
         Self
     }

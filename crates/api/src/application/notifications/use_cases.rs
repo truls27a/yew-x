@@ -4,9 +4,9 @@ use crate::domain::error::AppError;
 use crate::domain::notifications::entities::Notification;
 
 #[derive(Clone)]
-pub struct GetNotifications;
+pub struct GetNotificationsUseCase;
 
-impl GetNotifications {
+impl GetNotificationsUseCase {
     pub fn new() -> Self {
         Self
     }

@@ -15,7 +15,7 @@ pub async fn register(
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
     let token_pair = state
-        .register
+        .register_use_case
         .execute(uow, &body.email, &body.password, &body.display_name)
         .await?;
 
@@ -31,7 +31,7 @@ pub async fn login(
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
     let token_pair = state
-        .login
+        .login_use_case
         .execute(uow, &body.email, &body.password)
         .await?;
 
@@ -47,7 +47,7 @@ pub async fn refresh(
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
     let token_pair = state
-        .refresh
+        .refresh_use_case
         .execute(uow, &body.refresh_token)
         .await?;
 
@@ -62,6 +62,6 @@ pub async fn me(
     State(state): State<AppState>,
 ) -> Result<Json<UserResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let user = state.get_user.execute(uow, &caller.user_id).await?;
+    let user = state.get_user_use_case.execute(uow, &caller.user_id).await?;
     Ok(Json(UserResponse::from(user)))
 }

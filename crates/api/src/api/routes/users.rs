@@ -12,7 +12,7 @@ pub async fn get_single_user(
     Path(id): Path<String>,
 ) -> Result<Json<UserResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let user = state.get_user.execute(uow, &id).await?;
+    let user = state.get_user_use_case.execute(uow, &id).await?;
     Ok(Json(UserResponse::from(user)))
 }
 
@@ -23,6 +23,6 @@ pub async fn get_user_tweets_handler(
 ) -> Result<Json<Vec<TweetResponse>>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
     let user_id = caller.as_ref().map(|c| c.user_id.as_str());
-    let tweets = state.get_user_tweets.execute(uow, &id, user_id).await?;
+    let tweets = state.get_user_tweets_use_case.execute(uow, &id, user_id).await?;
     Ok(Json(tweets.into_iter().map(TweetResponse::from).collect()))
 }
