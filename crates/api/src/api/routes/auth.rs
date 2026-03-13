@@ -6,10 +6,6 @@ use crate::api::middleware::Caller;
 use crate::api::schemas::{
     LoginRequest, RefreshRequest, RegisterRequest, TokenPairResponse, UserResponse,
 };
-use crate::application::auth::use_cases as auth_uc;
-use crate::application::users::use_cases as user_uc;
-use crate::infrastructure::auth::adapters::{Argon2Hasher, JwtEncoder, Sha256TokenHasher};
-use crate::infrastructure::shared::time::UtcClock;
 use crate::infrastructure::shared::unit_of_work::SqliteUnitOfWork;
 use crate::AppState;
 
@@ -18,11 +14,9 @@ pub async fn register(
     Json(body): Json<RegisterRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let hasher = Argon2Hasher;
-    let token_hasher = Sha256TokenHasher;
-    let encoder = JwtEncoder::new(&state.jwt_secret);
-    let token_pair = auth_uc::Register::new(uow, &hasher, &token_hasher, &encoder, UtcClock)
-        .execute(&body.email, &body.password, &body.display_name)
+    let token_pair = state
+        .register
+        .execute(uow, &body.email, &body.password, &body.display_name)
         .await?;
 
     Ok(Json(TokenPairResponse {
@@ -36,11 +30,9 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let hasher = Argon2Hasher;
-    let token_hasher = Sha256TokenHasher;
-    let encoder = JwtEncoder::new(&state.jwt_secret);
-    let token_pair = auth_uc::Login::new(uow, &hasher, &token_hasher, &encoder, UtcClock)
-        .execute(&body.email, &body.password)
+    let token_pair = state
+        .login
+        .execute(uow, &body.email, &body.password)
         .await?;
 
     Ok(Json(TokenPairResponse {
@@ -54,10 +46,9 @@ pub async fn refresh(
     Json(body): Json<RefreshRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_hasher = Sha256TokenHasher;
-    let encoder = JwtEncoder::new(&state.jwt_secret);
-    let token_pair = auth_uc::Refresh::new(uow, &token_hasher, &encoder, UtcClock)
-        .execute(&body.refresh_token)
+    let token_pair = state
+        .refresh
+        .execute(uow, &body.refresh_token)
         .await?;
 
     Ok(Json(TokenPairResponse {
@@ -71,6 +62,6 @@ pub async fn me(
     State(state): State<AppState>,
 ) -> Result<Json<UserResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let user = user_uc::GetUser::new(uow).execute(&caller.user_id).await?;
+    let user = state.get_user.execute(uow, &caller.user_id).await?;
     Ok(Json(UserResponse::from(user)))
 }

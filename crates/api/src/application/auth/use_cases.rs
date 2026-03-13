@@ -1,10 +1,14 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
-use super::ports::{AuthRepository, PasswordHashPort, TokenHashPort, TokenPort};
+use super::ports::{PasswordHashPort, TokenHashPort, TokenPort};
 use crate::application::shared::time::Clock;
 use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::application::users::ports::UserRepository;
 use crate::domain::error::AppError;
+
+use super::ports::AuthRepository;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenPair {
@@ -12,39 +16,38 @@ pub struct TokenPair {
     pub refresh_token: String,
 }
 
-pub struct Register<'a, U: UnitOfWork> {
-    uow: U,
-    password_hasher: &'a dyn PasswordHashPort,
-    token_hasher: &'a dyn TokenHashPort,
-    token_port: &'a dyn TokenPort,
-    clock: Box<dyn Clock>,
+#[derive(Clone)]
+pub struct Register {
+    password_hasher: Arc<dyn PasswordHashPort>,
+    token_hasher: Arc<dyn TokenHashPort>,
+    token_port: Arc<dyn TokenPort>,
+    clock: Arc<dyn Clock>,
 }
 
-impl<'a, U: UnitOfWork> Register<'a, U> {
+impl Register {
     pub fn new(
-        uow: U,
-        password_hasher: &'a dyn PasswordHashPort,
-        token_hasher: &'a dyn TokenHashPort,
-        token_port: &'a dyn TokenPort,
-        clock: impl Clock + 'static,
+        password_hasher: Arc<dyn PasswordHashPort>,
+        token_hasher: Arc<dyn TokenHashPort>,
+        token_port: Arc<dyn TokenPort>,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         Self {
-            uow,
             password_hasher,
             token_hasher,
             token_port,
-            clock: Box::new(clock),
+            clock,
         }
     }
 
-    pub async fn execute(
-        self,
+    pub async fn execute<U: UnitOfWork>(
+        &self,
+        uow: U,
         email: &str,
         password: &str,
         display_name: &str,
     ) -> Result<TokenPair, AppError> {
         // Check uniqueness
-        if self.uow.auth().find_identity_by_email(email).await?.is_some() {
+        if uow.auth().find_identity_by_email(email).await?.is_some() {
             return Err(AppError::Conflict {
                 resource_type: "Identity",
                 reason: "Email already registered",
@@ -58,15 +61,13 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
         let user_id = uuid::Uuid::new_v4().to_string();
         let handle = email.split('@').next().unwrap_or("user");
         let avatar_url = format!("https://i.pravatar.cc/150?u={}", handle);
-        self.uow
-            .users()
+        uow.users()
             .create(&user_id, display_name, handle, &avatar_url)
             .await?;
 
         // Create identity
         let identity_id = uuid::Uuid::new_v4().to_string();
-        self.uow
-            .auth()
+        uow.auth()
             .create_identity(&identity_id, &user_id, email, &password_hash)
             .await?;
 
@@ -77,12 +78,11 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
         let refresh_hash = self.token_hasher.hash(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
-        self.uow
-            .auth()
+        uow.auth()
             .create_session(&session_id, &identity_id, &refresh_hash, expires_at)
             .await?;
 
-        self.uow.commit().await?;
+        uow.commit().await?;
 
         Ok(TokenPair {
             access_token,
@@ -91,34 +91,36 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
     }
 }
 
-pub struct Login<'a, U: UnitOfWork> {
-    uow: U,
-    password_hasher: &'a dyn PasswordHashPort,
-    token_hasher: &'a dyn TokenHashPort,
-    token_port: &'a dyn TokenPort,
-    clock: Box<dyn Clock>,
+#[derive(Clone)]
+pub struct Login {
+    password_hasher: Arc<dyn PasswordHashPort>,
+    token_hasher: Arc<dyn TokenHashPort>,
+    token_port: Arc<dyn TokenPort>,
+    clock: Arc<dyn Clock>,
 }
 
-impl<'a, U: UnitOfWork> Login<'a, U> {
+impl Login {
     pub fn new(
-        uow: U,
-        password_hasher: &'a dyn PasswordHashPort,
-        token_hasher: &'a dyn TokenHashPort,
-        token_port: &'a dyn TokenPort,
-        clock: impl Clock + 'static,
+        password_hasher: Arc<dyn PasswordHashPort>,
+        token_hasher: Arc<dyn TokenHashPort>,
+        token_port: Arc<dyn TokenPort>,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         Self {
-            uow,
             password_hasher,
             token_hasher,
             token_port,
-            clock: Box::new(clock),
+            clock,
         }
     }
 
-    pub async fn execute(self, email: &str, password: &str) -> Result<TokenPair, AppError> {
-        let identity = self
-            .uow
+    pub async fn execute<U: UnitOfWork>(
+        &self,
+        uow: U,
+        email: &str,
+        password: &str,
+    ) -> Result<TokenPair, AppError> {
+        let identity = uow
             .auth()
             .find_identity_by_email(email)
             .await?
@@ -141,12 +143,11 @@ impl<'a, U: UnitOfWork> Login<'a, U> {
         let refresh_hash = self.token_hasher.hash(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
-        self.uow
-            .auth()
+        uow.auth()
             .create_session(&session_id, &identity.id, &refresh_hash, expires_at)
             .await?;
 
-        self.uow.commit().await?;
+        uow.commit().await?;
 
         Ok(TokenPair {
             access_token,
@@ -155,32 +156,33 @@ impl<'a, U: UnitOfWork> Login<'a, U> {
     }
 }
 
-pub struct Refresh<'a, U: UnitOfWork> {
-    uow: U,
-    token_hasher: &'a dyn TokenHashPort,
-    token_port: &'a dyn TokenPort,
-    clock: Box<dyn Clock>,
+#[derive(Clone)]
+pub struct Refresh {
+    token_hasher: Arc<dyn TokenHashPort>,
+    token_port: Arc<dyn TokenPort>,
+    clock: Arc<dyn Clock>,
 }
 
-impl<'a, U: UnitOfWork> Refresh<'a, U> {
+impl Refresh {
     pub fn new(
-        uow: U,
-        token_hasher: &'a dyn TokenHashPort,
-        token_port: &'a dyn TokenPort,
-        clock: impl Clock + 'static,
+        token_hasher: Arc<dyn TokenHashPort>,
+        token_port: Arc<dyn TokenPort>,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         Self {
-            uow,
             token_hasher,
             token_port,
-            clock: Box::new(clock),
+            clock,
         }
     }
 
-    pub async fn execute(self, refresh_token: &str) -> Result<TokenPair, AppError> {
+    pub async fn execute<U: UnitOfWork>(
+        &self,
+        uow: U,
+        refresh_token: &str,
+    ) -> Result<TokenPair, AppError> {
         let token_hash = self.token_hasher.hash(refresh_token);
-        let session = self
-            .uow
+        let session = uow
             .auth()
             .find_session_by_token_hash(&token_hash)
             .await?
@@ -190,18 +192,17 @@ impl<'a, U: UnitOfWork> Refresh<'a, U> {
 
         // Check expiry
         if self.clock.now() > session.expires_at {
-            self.uow.auth().delete_session(&session.id).await?;
-            self.uow.commit().await?;
+            uow.auth().delete_session(&session.id).await?;
+            uow.commit().await?;
             return Err(AppError::Unauthorized {
                 reason: "Refresh token expired",
             });
         }
 
         // Delete old session
-        self.uow.auth().delete_session(&session.id).await?;
+        uow.auth().delete_session(&session.id).await?;
 
-        let identity = self
-            .uow
+        let identity = uow
             .auth()
             .find_identity_by_id(&session.identity_id)
             .await?
@@ -217,12 +218,11 @@ impl<'a, U: UnitOfWork> Refresh<'a, U> {
         let refresh_hash = self.token_hasher.hash(&new_refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
-        self.uow
-            .auth()
+        uow.auth()
             .create_session(&session_id, &identity.id, &refresh_hash, expires_at)
             .await?;
 
-        self.uow.commit().await?;
+        uow.commit().await?;
 
         Ok(TokenPair {
             access_token,

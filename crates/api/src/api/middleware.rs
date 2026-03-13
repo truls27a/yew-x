@@ -1,8 +1,6 @@
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 
-use crate::application::auth::ports::TokenPort;
-use crate::infrastructure::auth::adapters::JwtEncoder;
 use crate::api::errors::ApiError;
 use crate::AppState;
 
@@ -31,8 +29,7 @@ impl FromRequestParts<AppState> for Caller {
                 message: "Invalid authorization header".into(),
             })?;
 
-        let encoder = JwtEncoder::new(&state.jwt_secret);
-        let payload = encoder.decode(token).map_err(|_| ApiError::Unauthorized {
+        let payload = state.token_port.decode(token).map_err(|_| ApiError::Unauthorized {
             message: "Invalid or expired token".into(),
         })?;
 
