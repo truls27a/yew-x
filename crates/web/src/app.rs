@@ -2,6 +2,7 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 
 use crate::components::layout::Layout;
+use crate::features::auth::components::LoginPage;
 use crate::hooks::QueryClientProvider;
 use crate::pages::home_page::HomePage;
 use crate::pages::notifications_page::NotificationsPage;
@@ -15,6 +16,7 @@ fn switch(route: Route) -> Html {
         Route::Profile { id: _ } => html! { <ProfilePage /> },
         Route::TweetDetail { id: _ } => html! { <TweetDetailPage /> },
         Route::Notifications => html! { <NotificationsPage /> },
+        Route::Login => html! { <LoginPage /> },
         Route::NotFound => html! {
             <div class="flex justify-center items-center h-64">
                 <span class="text-gray-500 text-xl">{ "404 — Page not found" }</span>

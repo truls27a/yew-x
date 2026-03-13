@@ -1,11 +1,35 @@
 use yew::prelude::*;
+use yew_router::prelude::*;
 
+use crate::features::auth::hooks::use_me;
 use crate::features::notifications::components::NotificationItem;
 use crate::features::notifications::hooks::use_notifications;
 use crate::hooks::QueryState;
+use crate::router::Route;
 
 #[function_component(NotificationsPage)]
 pub fn notifications_page() -> Html {
+    let me = use_me();
+    let navigator = use_navigator().unwrap();
+
+    if matches!(&me, QueryState::Error(_)) {
+        navigator.push(&Route::Login);
+        return html! {};
+    }
+
+    if !matches!(&me, QueryState::Ready(_)) {
+        return html! {
+            <div class="flex justify-center p-8">
+                <span class="text-gray-500">{ "Loading..." }</span>
+            </div>
+        };
+    }
+
+    html! { <NotificationsContent /> }
+}
+
+#[function_component(NotificationsContent)]
+fn notifications_content() -> Html {
     let query = use_notifications();
 
     html! {

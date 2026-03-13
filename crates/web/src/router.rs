@@ -10,6 +10,8 @@ pub enum Route {
     TweetDetail { id: String },
     #[at("/notifications")]
     Notifications,
+    #[at("/login")]
+    Login,
     #[not_found]
     #[at("/404")]
     NotFound,

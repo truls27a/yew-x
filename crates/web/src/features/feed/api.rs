@@ -1,13 +1,17 @@
 use gloo_net::http::Request;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use super::types::{Tweet, User};
+use crate::features::auth::api::get_token;
 
 const API_BASE: &str = "http://localhost:3000/api";
 
 pub async fn get_all_tweets() -> Result<Vec<Tweet>, String> {
-    Request::get(&format!("{API_BASE}/tweets"))
-        .send()
+    let mut req = Request::get(&format!("{API_BASE}/tweets"));
+    if let Some(token) = get_token() {
+        req = req.header("Authorization", &format!("Bearer {token}"));
+    }
+    req.send()
         .await
         .map_err(|e| e.to_string())?
         .json::<Vec<Tweet>>()
@@ -16,8 +20,11 @@ pub async fn get_all_tweets() -> Result<Vec<Tweet>, String> {
 }
 
 pub async fn get_tweet_by_id(tweet_id: &str) -> Result<Tweet, String> {
-    Request::get(&format!("{API_BASE}/tweets/{tweet_id}"))
-        .send()
+    let mut req = Request::get(&format!("{API_BASE}/tweets/{tweet_id}"));
+    if let Some(token) = get_token() {
+        req = req.header("Authorization", &format!("Bearer {token}"));
+    }
+    req.send()
         .await
         .map_err(|e| e.to_string())?
         .json::<Tweet>()
@@ -36,8 +43,11 @@ pub async fn get_user_by_id(user_id: &str) -> Result<User, String> {
 }
 
 pub async fn get_tweets_by_user(user_id: &str) -> Result<Vec<Tweet>, String> {
-    Request::get(&format!("{API_BASE}/users/{user_id}/tweets"))
-        .send()
+    let mut req = Request::get(&format!("{API_BASE}/users/{user_id}/tweets"));
+    if let Some(token) = get_token() {
+        req = req.header("Authorization", &format!("Bearer {token}"));
+    }
+    req.send()
         .await
         .map_err(|e| e.to_string())?
         .json::<Vec<Tweet>>()
@@ -47,14 +57,14 @@ pub async fn get_tweets_by_user(user_id: &str) -> Result<Vec<Tweet>, String> {
 
 #[derive(Serialize)]
 struct CreateTweetBody {
-    user_id: String,
     content: String,
 }
 
-pub async fn create_tweet(user_id: &str, content: &str) -> Result<Tweet, String> {
+pub async fn create_tweet(content: &str) -> Result<Tweet, String> {
+    let token = get_token().ok_or_else(|| "Not authenticated".to_string())?;
     Request::post(&format!("{API_BASE}/tweets"))
+        .header("Authorization", &format!("Bearer {token}"))
         .json(&CreateTweetBody {
-            user_id: user_id.to_string(),
             content: content.to_string(),
         })
         .map_err(|e| e.to_string())?
@@ -66,14 +76,16 @@ pub async fn create_tweet(user_id: &str, content: &str) -> Result<Tweet, String>
         .map_err(|e| e.to_string())
 }
 
-#[derive(Deserialize)]
+#[derive(serde::Deserialize)]
 pub struct LikeResponse {
     pub liked: bool,
     pub count: u32,
 }
 
 pub async fn toggle_like(tweet_id: &str) -> Result<LikeResponse, String> {
+    let token = get_token().ok_or_else(|| "Not authenticated".to_string())?;
     Request::post(&format!("{API_BASE}/tweets/{tweet_id}/like"))
+        .header("Authorization", &format!("Bearer {token}"))
         .send()
         .await
         .map_err(|e| e.to_string())?

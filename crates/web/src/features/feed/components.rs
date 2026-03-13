@@ -5,6 +5,8 @@ use yew_router::prelude::*;
 use super::hooks::{use_create_tweet, use_toggle_like};
 use super::types::Tweet;
 use crate::components::icons;
+use crate::features::auth::hooks::use_me;
+use crate::hooks::QueryState;
 use crate::router::Route;
 
 #[derive(Properties, PartialEq)]
@@ -15,19 +17,28 @@ pub struct TweetCardProps {
 #[function_component(TweetCard)]
 pub fn tweet_card(props: &TweetCardProps) -> Html {
     let tweet = &props.tweet;
+    let me = use_me();
     let (liked, like_count, on_like_click) =
         use_toggle_like(&tweet.id, tweet.liked, tweet.likes);
 
+    let is_logged_in = matches!(&me, QueryState::Ready(_));
+    let navigator = use_navigator().unwrap();
+
     let on_like_wrapper = {
         let on_like_click = on_like_click.clone();
+        let is_logged_in = is_logged_in;
+        let navigator = navigator.clone();
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             e.stop_propagation();
-            on_like_click.emit(e);
+            if is_logged_in {
+                on_like_click.emit(e);
+            } else {
+                navigator.push(&Route::Login);
+            }
         })
     };
 
-    let navigator = use_navigator().unwrap();
     let tweet_id = tweet.id.clone();
     let on_click = {
         let navigator = navigator.clone();
@@ -40,6 +51,7 @@ pub fn tweet_card(props: &TweetCardProps) -> Html {
 
     let profile_id = tweet.user.id.clone();
     let on_avatar_click = {
+        let navigator = navigator.clone();
         Callback::from(move |e: MouseEvent| {
             e.stop_propagation();
             navigator.push(&Route::Profile {
@@ -65,7 +77,7 @@ pub fn tweet_card(props: &TweetCardProps) -> Html {
                 <div class="flex items-center gap-1">
                     <span class="font-bold text-white truncate">{ &tweet.user.display_name }</span>
                     <span class="text-gray-500 truncate">{ format!("@{}", tweet.user.handle) }</span>
-                    <span class="text-gray-500">{ "·" }</span>
+                    <span class="text-gray-500">{ "\u{00b7}" }</span>
                     <span class="text-gray-500">{ &tweet.timestamp }</span>
                 </div>
                 <p class="text-white mt-1 whitespace-pre-wrap">{ &tweet.content }</p>
@@ -91,8 +103,25 @@ pub fn tweet_card(props: &TweetCardProps) -> Html {
 
 #[function_component(ComposeTweet)]
 pub fn compose_tweet() -> Html {
+    let me = use_me();
     let content = use_state(String::new);
     let create_tweet = use_create_tweet();
+
+    if !matches!(&me, QueryState::Ready(_)) {
+        return html! {
+            <div class="px-4 py-4 border-b border-gray-800 text-gray-500 text-center">
+                <Link<Route> to={Route::Login} classes="text-blue-500 hover:underline">
+                    { "Log in to post" }
+                </Link<Route>>
+            </div>
+        };
+    }
+
+    let avatar_url = if let QueryState::Ready(user) = &me {
+        user.avatar_url.clone()
+    } else {
+        String::new()
+    };
 
     let on_input = {
         let content = content.clone();
@@ -119,7 +148,7 @@ pub fn compose_tweet() -> Html {
 
     html! {
         <div class="flex gap-3 px-4 py-3 border-b border-gray-800">
-            <img src="https://i.pravatar.cc/150?u=you"
+            <img src={avatar_url}
                  class="w-10 h-10 rounded-full flex-shrink-0"
                  alt="Your avatar" />
             <div class="flex-1">

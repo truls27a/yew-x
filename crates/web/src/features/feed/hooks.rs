@@ -15,7 +15,7 @@ pub fn use_create_tweet() -> Mutation<String> {
     use_mutation(move |content: String| {
         let client = client.clone();
         async move {
-            let result = api::create_tweet("current", &content).await;
+            let result = api::create_tweet(&content).await;
             if result.is_ok() {
                 client.invalidate("tweet");
             }

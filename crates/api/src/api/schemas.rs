@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::domain::entities::notification::{Notification, NotificationType};
-use crate::domain::entities::tweet::Tweet;
-use crate::domain::entities::user::User;
+use crate::domain::notifications::entities::{Notification, NotificationType};
+use crate::domain::tweets::entities::Tweet;
+use crate::domain::users::entities::User;
 
 #[derive(Serialize)]
 pub struct UserResponse {
@@ -93,7 +93,6 @@ impl From<Notification> for NotificationResponse {
 
 #[derive(Deserialize)]
 pub struct CreateTweetRequest {
-    pub user_id: String,
     pub content: String,
 }
 
@@ -101,6 +100,30 @@ pub struct CreateTweetRequest {
 pub struct LikeResponse {
     pub liked: bool,
     pub count: u32,
+}
+
+#[derive(Deserialize)]
+pub struct RegisterRequest {
+    pub email: String,
+    pub password: String,
+    pub display_name: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Serialize)]
+pub struct TokenPairResponse {
+    pub access_token: String,
+    pub refresh_token: String,
 }
 
 fn relative_time(dt: chrono::NaiveDateTime) -> String {

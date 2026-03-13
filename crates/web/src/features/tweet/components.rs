@@ -3,7 +3,9 @@ use yew_router::prelude::*;
 
 use super::hooks::use_toggle_like;
 use crate::components::icons;
+use crate::features::auth::hooks::use_me;
 use crate::features::feed::types::Tweet;
+use crate::hooks::QueryState;
 use crate::router::Route;
 
 #[derive(Properties, PartialEq)]
@@ -14,16 +16,32 @@ pub struct TweetDetailProps {
 #[function_component(TweetDetailView)]
 pub fn tweet_detail_view(props: &TweetDetailProps) -> Html {
     let tweet = &props.tweet;
+    let me = use_me();
     let (liked, like_count, on_like_click) =
         use_toggle_like(&tweet.id, tweet.liked, tweet.likes);
 
+    let is_logged_in = matches!(&me, QueryState::Ready(_));
     let navigator = use_navigator().unwrap();
+
     let profile_id = tweet.user.id.clone();
     let on_avatar_click = {
+        let navigator = navigator.clone();
         Callback::from(move |_: MouseEvent| {
             navigator.push(&Route::Profile {
                 id: profile_id.clone(),
             });
+        })
+    };
+
+    let on_like_wrapper = {
+        let on_like_click = on_like_click.clone();
+        let navigator = navigator.clone();
+        Callback::from(move |e: MouseEvent| {
+            if is_logged_in {
+                on_like_click.emit(e);
+            } else {
+                navigator.push(&Route::Login);
+            }
         })
     };
 
@@ -66,7 +84,7 @@ pub fn tweet_detail_view(props: &TweetDetailProps) -> Html {
                 <button class="hover:text-green-500 transition-colors p-2">
                     <icons::RetweetIcon />
                 </button>
-                <button onclick={on_like_click}
+                <button onclick={on_like_wrapper}
                         class={classes!("transition-colors", "p-2", heart_class)}>
                     <icons::HeartIcon filled={liked} />
                 </button>

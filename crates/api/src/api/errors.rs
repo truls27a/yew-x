@@ -3,6 +3,7 @@ use axum::response::{IntoResponse, Response};
 
 pub enum AppError {
     NotFound(String),
+    Unauthorized(String),
     Internal(anyhow::Error),
 }
 
@@ -10,6 +11,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::Internal(err) => {
                 tracing::error!("Internal error: {err:?}");
                 (
