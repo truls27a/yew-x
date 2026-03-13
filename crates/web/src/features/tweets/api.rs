@@ -1,48 +1,18 @@
-use gloo_net::http::Request;
 use serde::Serialize;
 
 use super::types::Tweet;
-use crate::features::auth::api::get_token;
-
-const API_BASE: &str = "http://localhost:3000/api";
+use crate::shared::api::client;
 
 pub async fn get_all_tweets() -> Result<Vec<Tweet>, String> {
-    let mut req = Request::get(&format!("{API_BASE}/tweets"));
-    if let Some(token) = get_token() {
-        req = req.header("Authorization", &format!("Bearer {token}"));
-    }
-    req.send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json::<Vec<Tweet>>()
-        .await
-        .map_err(|e| e.to_string())
+    client::get::<Vec<Tweet>>("/api/tweets").await
 }
 
 pub async fn get_tweet_by_id(tweet_id: &str) -> Result<Tweet, String> {
-    let mut req = Request::get(&format!("{API_BASE}/tweets/{tweet_id}"));
-    if let Some(token) = get_token() {
-        req = req.header("Authorization", &format!("Bearer {token}"));
-    }
-    req.send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json::<Tweet>()
-        .await
-        .map_err(|e| e.to_string())
+    client::get::<Tweet>(&format!("/api/tweets/{tweet_id}")).await
 }
 
 pub async fn get_tweets_by_user(user_id: &str) -> Result<Vec<Tweet>, String> {
-    let mut req = Request::get(&format!("{API_BASE}/users/{user_id}/tweets"));
-    if let Some(token) = get_token() {
-        req = req.header("Authorization", &format!("Bearer {token}"));
-    }
-    req.send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json::<Vec<Tweet>>()
-        .await
-        .map_err(|e| e.to_string())
+    client::get::<Vec<Tweet>>(&format!("/api/users/{user_id}/tweets")).await
 }
 
 #[derive(Serialize)]
@@ -51,19 +21,13 @@ struct CreateTweetBody {
 }
 
 pub async fn create_tweet(content: &str) -> Result<Tweet, String> {
-    let token = get_token().ok_or_else(|| "Not authenticated".to_string())?;
-    Request::post(&format!("{API_BASE}/tweets"))
-        .header("Authorization", &format!("Bearer {token}"))
-        .json(&CreateTweetBody {
+    client::post::<_, Tweet>(
+        "/api/tweets",
+        Some(&CreateTweetBody {
             content: content.to_string(),
-        })
-        .map_err(|e| e.to_string())?
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json::<Tweet>()
-        .await
-        .map_err(|e| e.to_string())
+        }),
+    )
+    .await
 }
 
 #[derive(serde::Deserialize)]
@@ -73,13 +37,5 @@ pub struct LikeResponse {
 }
 
 pub async fn toggle_like(tweet_id: &str) -> Result<LikeResponse, String> {
-    let token = get_token().ok_or_else(|| "Not authenticated".to_string())?;
-    Request::post(&format!("{API_BASE}/tweets/{tweet_id}/like"))
-        .header("Authorization", &format!("Bearer {token}"))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json::<LikeResponse>()
-        .await
-        .map_err(|e| e.to_string())
+    client::post::<(), LikeResponse>(&format!("/api/tweets/{tweet_id}/like"), None).await
 }

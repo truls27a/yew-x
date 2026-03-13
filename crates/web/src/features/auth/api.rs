@@ -1,8 +1,5 @@
-use gloo_net::http::Request;
-
 use super::types::{LoginRequest, MeResponse, RegisterRequest, TokenPair};
-
-const API_BASE: &str = "http://localhost:3000/api";
+use crate::shared::api::client;
 
 pub fn get_token() -> Option<String> {
     let window = web_sys::window()?;
@@ -35,52 +32,17 @@ pub fn clear_tokens() {
 }
 
 pub async fn login(req: LoginRequest) -> Result<TokenPair, String> {
-    let resp = Request::post(&format!("{API_BASE}/auth/login"))
-        .json(&req)
-        .map_err(|e| e.to_string())?
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if resp.status() != 200 {
-        return Err("Invalid email or password".to_string());
-    }
-
-    let pair: TokenPair = resp.json().await.map_err(|e| e.to_string())?;
+    let pair = client::post::<_, TokenPair>("/api/auth/login", Some(&req)).await?;
     save_tokens(&pair.access_token, &pair.refresh_token);
     Ok(pair)
 }
 
 pub async fn register(req: RegisterRequest) -> Result<TokenPair, String> {
-    let resp = Request::post(&format!("{API_BASE}/auth/register"))
-        .json(&req)
-        .map_err(|e| e.to_string())?
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if resp.status() != 200 {
-        return Err("Registration failed".to_string());
-    }
-
-    let pair: TokenPair = resp.json().await.map_err(|e| e.to_string())?;
+    let pair = client::post::<_, TokenPair>("/api/auth/register", Some(&req)).await?;
     save_tokens(&pair.access_token, &pair.refresh_token);
     Ok(pair)
 }
 
 pub async fn get_me() -> Result<MeResponse, String> {
-    let token = get_token().ok_or_else(|| "Not authenticated".to_string())?;
-    let resp = Request::get(&format!("{API_BASE}/auth/me"))
-        .header("Authorization", &format!("Bearer {token}"))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if resp.status() != 200 {
-        return Err("Not authenticated".to_string());
-    }
-
-    resp.json::<MeResponse>()
-        .await
-        .map_err(|e| e.to_string())
+    client::get::<MeResponse>("/api/auth/me").await
 }

@@ -1,18 +1,10 @@
 use super::types::User;
 use crate::features::tweets::api::get_tweets_by_user;
 use crate::features::tweets::types::Tweet;
-use gloo_net::http::Request;
-
-const API_BASE: &str = "http://localhost:3000/api";
+use crate::shared::api::client;
 
 pub async fn get_user_by_id(user_id: &str) -> Result<User, String> {
-    Request::get(&format!("{API_BASE}/users/{user_id}"))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json::<User>()
-        .await
-        .map_err(|e| e.to_string())
+    client::get::<User>(&format!("/api/users/{user_id}")).await
 }
 
 pub async fn get_profile(user_id: &str) -> Result<Option<(User, Vec<Tweet>)>, String> {

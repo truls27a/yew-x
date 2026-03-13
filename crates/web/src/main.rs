@@ -2,6 +2,7 @@ mod app;
 mod components;
 mod features;
 mod hooks;
+mod shared;
 mod pages;
 mod router;
 
