@@ -1,15 +1,3 @@
-[package]
-name = "yew-twitter"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-yew = { version = "0.23", features = ["csr"] }
-yew-router = "0.20"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-uuid = { version = "1", features = ["v4", "js"] }
-wasm-logger = "0.2"
-log = "0.4"
-web-sys = { version = "0.3", features = ["HtmlTextAreaElement"] }
-gloo-timers = "0.3"
+[workspace]
+members = ["crates/api", "crates/web"]
+resolver = "2"

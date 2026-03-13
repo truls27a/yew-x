@@ -1,0 +1,15 @@
+[package]
+name = "yew-twitter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+yew = { version = "0.23", features = ["csr"] }
+yew-router = "0.20"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-logger = "0.2"
+log = "0.4"
+web-sys = { version = "0.3", features = ["HtmlTextAreaElement"] }
+gloo-net = { version = "0.6", features = ["http"] }
+wasm-bindgen-futures = "0.4"
