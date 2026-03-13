@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::domain::comments::entities::Comment;
 use crate::domain::notifications::entities::{Notification, NotificationType};
 use crate::domain::tweets::entities::Tweet;
 use crate::domain::users::entities::User;
@@ -89,6 +90,30 @@ impl From<Notification> for NotificationResponse {
             timestamp: format_timestamp(n.created_at),
         }
     }
+}
+
+#[derive(Serialize)]
+pub struct CommentResponse {
+    pub id: String,
+    pub user: UserResponse,
+    pub content: String,
+    pub timestamp: String,
+}
+
+impl From<Comment> for CommentResponse {
+    fn from(c: Comment) -> Self {
+        Self {
+            id: c.id,
+            user: UserResponse::from(c.user),
+            content: c.content,
+            timestamp: format_timestamp(c.created_at),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct CreateCommentRequest {
+    pub content: String,
 }
 
 #[derive(Deserialize)]

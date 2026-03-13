@@ -24,3 +24,11 @@ pub struct Tweet {
     pub retweeted: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Comment {
+    pub id: String,
+    pub user: User,
+    pub content: String,
+    pub timestamp: String,
+}
+

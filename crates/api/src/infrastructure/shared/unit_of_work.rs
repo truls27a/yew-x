@@ -7,6 +7,7 @@ use tokio::sync::Mutex;
 use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::domain::error::AppError;
 use crate::infrastructure::auth::adapters::SqliteAuthRepository;
+use crate::infrastructure::comments::adapters::SqliteCommentRepository;
 use crate::infrastructure::notifications::adapters::SqliteNotificationRepository;
 use crate::infrastructure::tweets::adapters::SqliteTweetRepository;
 use crate::infrastructure::users::adapters::SqliteUserRepository;
@@ -61,6 +62,7 @@ impl UnitOfWork for SqliteUnitOfWork {
     type TweetRepo = SqliteTweetRepository;
     type NotificationRepo = SqliteNotificationRepository;
     type AuthRepo = SqliteAuthRepository;
+    type CommentRepo = SqliteCommentRepository;
 
     fn users(&self) -> SqliteUserRepository {
         SqliteUserRepository::new(self.tx.clone())
@@ -76,6 +78,10 @@ impl UnitOfWork for SqliteUnitOfWork {
 
     fn auth(&self) -> SqliteAuthRepository {
         SqliteAuthRepository::new(self.tx.clone())
+    }
+
+    fn comments(&self) -> SqliteCommentRepository {
+        SqliteCommentRepository::new(self.tx.clone())
     }
 
     async fn commit(self) -> Result<(), AppError> {

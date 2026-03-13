@@ -12,6 +12,7 @@ use tower_http::cors::{Any, CorsLayer};
 use application::auth::ports::TokenPort;
 use application::auth::use_cases as auth_uc;
 use application::notifications::use_cases as notif_uc;
+use application::comments::use_cases as comment_uc;
 use application::tweets::use_cases as tweet_uc;
 use application::users::use_cases as user_uc;
 use infrastructure::auth::adapters::{Argon2Hasher, JwtEncoder, Sha256TokenHasher};
@@ -32,6 +33,9 @@ pub struct AppState {
     pub create_tweet_use_case: tweet_uc::CreateTweetUseCase,
     pub get_user_tweets_use_case: tweet_uc::GetUserTweetsUseCase,
     pub toggle_like_use_case: tweet_uc::ToggleLikeUseCase,
+    // Comments
+    pub get_comments_use_case: comment_uc::GetCommentsUseCase,
+    pub create_comment_use_case: comment_uc::CreateCommentUseCase,
     // Users
     pub get_user_use_case: user_uc::GetUserUseCase,
     // Notifications
@@ -75,6 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_tweet_use_case: tweet_uc::CreateTweetUseCase::new(),
         get_user_tweets_use_case: tweet_uc::GetUserTweetsUseCase::new(),
         toggle_like_use_case: tweet_uc::ToggleLikeUseCase::new(),
+        get_comments_use_case: comment_uc::GetCommentsUseCase::new(),
+        create_comment_use_case: comment_uc::CreateCommentUseCase::new(),
         get_user_use_case: user_uc::GetUserUseCase::new(),
         get_notifications_use_case: notif_uc::GetNotificationsUseCase::new(),
     };
@@ -93,6 +99,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(api::routes::tweets::get_single_tweet),
         )
         .route("/api/tweets/{id}/like", post(api::routes::tweets::like))
+        .route(
+            "/api/tweets/{id}/comments",
+            get(api::routes::comments::list_comments).post(api::routes::comments::create_comment),
+        )
         .route(
             "/api/users/{id}",
             get(api::routes::users::get_single_user),

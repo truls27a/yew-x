@@ -33,7 +33,7 @@ fn row_to_tweet(row: TweetRow) -> Tweet {
         created_at: row.created_at,
         likes: row.like_count as u32,
         retweets: 0,
-        replies: 0,
+        replies: row.reply_count as u32,
         liked: row.liked,
         retweeted: false,
     }
@@ -44,7 +44,8 @@ const TWEET_QUERY_BASE: &str = "
         t.id, t.user_id, t.content, t.created_at,
         u.display_name, u.handle, u.avatar_url, u.bio, u.followers, u.following,
         COALESCE((SELECT COUNT(*) FROM tweet_likes WHERE tweet_id = t.id), 0) as like_count,
-        EXISTS(SELECT 1 FROM tweet_likes WHERE tweet_id = t.id AND user_id = ?) as liked
+        EXISTS(SELECT 1 FROM tweet_likes WHERE tweet_id = t.id AND user_id = ?) as liked,
+        COALESCE((SELECT COUNT(*) FROM comments WHERE tweet_id = t.id), 0) as reply_count
     FROM tweets t
     JOIN users u ON t.user_id = u.id
 ";
