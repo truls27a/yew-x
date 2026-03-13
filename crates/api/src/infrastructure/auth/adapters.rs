@@ -117,7 +117,11 @@ impl AuthRepository for SqliteAuthRepository {
             sqlx::query_as("SELECT id, user_id, email, password_hash FROM identities WHERE email = ?")
                 .bind(email)
                 .fetch_optional(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
 
         Ok(row.map(|r| Identity {
             id: r.id,
@@ -141,7 +145,11 @@ impl AuthRepository for SqliteAuthRepository {
             .bind(email)
             .bind(password_hash)
             .execute(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 
@@ -159,7 +167,11 @@ impl AuthRepository for SqliteAuthRepository {
             .bind(token_hash)
             .bind(expires_at)
             .execute(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 
@@ -172,7 +184,11 @@ impl AuthRepository for SqliteAuthRepository {
             sqlx::query_as("SELECT id, identity_id, token_hash, expires_at FROM sessions WHERE token_hash = ?")
                 .bind(token_hash)
                 .fetch_optional(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
 
         Ok(row.map(|r| Session {
             id: r.id,
@@ -187,7 +203,11 @@ impl AuthRepository for SqliteAuthRepository {
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(id)
             .execute(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 
@@ -197,7 +217,11 @@ impl AuthRepository for SqliteAuthRepository {
             sqlx::query_as("SELECT id, user_id, email, password_hash FROM identities WHERE id = ?")
                 .bind(id)
                 .fetch_optional(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
 
         Ok(row.map(|r| Identity {
             id: r.id,

@@ -56,7 +56,11 @@ impl TweetRepository for SqliteTweetRepository {
         let rows: Vec<TweetRow> = sqlx::query_as(&query)
             .bind(current_user_id.unwrap_or(""))
             .fetch_all(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(rows.into_iter().map(row_to_tweet).collect())
     }
 
@@ -71,7 +75,11 @@ impl TweetRepository for SqliteTweetRepository {
             .bind(current_user_id.unwrap_or(""))
             .bind(id)
             .fetch_optional(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(row.map(row_to_tweet))
     }
 
@@ -86,7 +94,11 @@ impl TweetRepository for SqliteTweetRepository {
             .bind(current_user_id.unwrap_or(""))
             .bind(user_id)
             .fetch_all(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(rows.into_iter().map(row_to_tweet).collect())
     }
 
@@ -97,7 +109,11 @@ impl TweetRepository for SqliteTweetRepository {
             .bind(user_id)
             .bind(content)
             .execute(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 
@@ -108,27 +124,43 @@ impl TweetRepository for SqliteTweetRepository {
                 .bind(tweet_id)
                 .bind(user_id)
                 .fetch_one(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
 
         if exists {
             sqlx::query("DELETE FROM tweet_likes WHERE tweet_id = ? AND user_id = ?")
                 .bind(tweet_id)
                 .bind(user_id)
                 .execute(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
         } else {
             sqlx::query("INSERT INTO tweet_likes (tweet_id, user_id) VALUES (?, ?)")
                 .bind(tweet_id)
                 .bind(user_id)
                 .execute(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
         }
 
         let count: (i64,) =
             sqlx::query_as("SELECT COUNT(*) FROM tweet_likes WHERE tweet_id = ?")
                 .bind(tweet_id)
                 .fetch_one(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
 
         Ok((!exists, count.0 as u32))
     }

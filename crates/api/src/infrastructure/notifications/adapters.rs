@@ -28,7 +28,11 @@ impl NotificationRepository for SqliteNotificationRepository {
         )
         .bind(user_id)
         .fetch_all(&mut **tx)
-        .await?;
+        .await
+        .map_err(|e| AppError::Internal {
+            message: "Database error".into(),
+            source: Some(Box::new(e)),
+        })?;
 
         Ok(rows
             .into_iter()

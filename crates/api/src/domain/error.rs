@@ -33,11 +33,3 @@ pub enum AppError {
     },
 }
 
-impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> Self {
-        AppError::Internal {
-            message: "Database error".into(),
-            source: Some(Box::new(err)),
-        }
-    }
-}

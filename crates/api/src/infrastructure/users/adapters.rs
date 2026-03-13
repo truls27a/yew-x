@@ -23,7 +23,11 @@ impl UserRepository for SqliteUserRepository {
             sqlx::query_as("SELECT id, display_name, handle, avatar_url, bio, followers, following FROM users WHERE id = ?")
                 .bind(id)
                 .fetch_optional(&mut **tx)
-                .await?;
+                .await
+                .map_err(|e| AppError::Internal {
+                    message: "Database error".into(),
+                    source: Some(Box::new(e)),
+                })?;
 
         Ok(row.map(|r| User {
             id: r.id,
@@ -50,7 +54,11 @@ impl UserRepository for SqliteUserRepository {
             .bind(handle)
             .bind(avatar_url)
             .execute(&mut **tx)
-            .await?;
+            .await
+            .map_err(|e| AppError::Internal {
+                message: "Database error".into(),
+                source: Some(Box::new(e)),
+            })?;
         Ok(())
     }
 }
