@@ -52,10 +52,9 @@ impl JwtEncoder {
 }
 
 impl TokenPort for JwtEncoder {
-    fn encode(&self, sub: &str, identity_id: &str, iat: usize, exp: usize) -> Result<String, AppError> {
+    fn encode(&self, sub: &str, iat: usize, exp: usize) -> Result<String, AppError> {
         let payload = TokenPayload {
             sub: sub.to_string(),
-            identity_id: identity_id.to_string(),
             exp,
             iat,
         };

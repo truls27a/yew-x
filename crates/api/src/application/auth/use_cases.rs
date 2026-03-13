@@ -76,7 +76,7 @@ impl<'a, U: UnitOfWork> Register<'a, U> {
 
         // Create session
         let now = self.clock.now() as usize;
-        let access_token = self.token_port.encode(&user_id, &identity_id, now, now + 15 * 60)?;
+        let access_token = self.token_port.encode(&user_id, now, now + 15 * 60)?;
         let refresh_token = uuid::Uuid::new_v4().to_string();
         let refresh_hash = hash_refresh_token(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
@@ -137,7 +137,7 @@ impl<'a, U: UnitOfWork> Login<'a, U> {
 
         // Create session
         let now = self.clock.now() as usize;
-        let access_token = self.token_port.encode(&identity.user_id, &identity.id, now, now + 15 * 60)?;
+        let access_token = self.token_port.encode(&identity.user_id, now, now + 15 * 60)?;
         let refresh_token = uuid::Uuid::new_v4().to_string();
         let refresh_hash = hash_refresh_token(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
@@ -206,7 +206,7 @@ impl<'a, U: UnitOfWork> Refresh<'a, U> {
             })?;
 
         let now = self.clock.now() as usize;
-        let access_token = self.token_port.encode(&identity.user_id, &identity.id, now, now + 15 * 60)?;
+        let access_token = self.token_port.encode(&identity.user_id, now, now + 15 * 60)?;
         let new_refresh_token = uuid::Uuid::new_v4().to_string();
         let refresh_hash = hash_refresh_token(&new_refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();

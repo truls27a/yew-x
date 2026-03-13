@@ -6,7 +6,6 @@ use crate::domain::error::AppError;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenPayload {
     pub sub: String,
-    pub identity_id: String,
     pub exp: usize,
     pub iat: usize,
 }
@@ -17,7 +16,7 @@ pub trait HashPort: Send + Sync {
 }
 
 pub trait TokenPort: Send + Sync {
-    fn encode(&self, sub: &str, identity_id: &str, iat: usize, exp: usize) -> Result<String, AppError>;
+    fn encode(&self, sub: &str, iat: usize, exp: usize) -> Result<String, AppError>;
     fn decode(&self, token: &str) -> Result<TokenPayload, AppError>;
 }
 

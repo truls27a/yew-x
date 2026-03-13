@@ -8,7 +8,6 @@ use crate::AppState;
 
 pub struct Caller {
     pub user_id: String,
-    pub identity_id: String,
 }
 
 impl FromRequestParts<AppState> for Caller {
@@ -39,7 +38,6 @@ impl FromRequestParts<AppState> for Caller {
 
         Ok(Caller {
             user_id: payload.sub,
-            identity_id: payload.identity_id,
         })
     }
 }
