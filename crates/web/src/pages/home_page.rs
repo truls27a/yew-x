@@ -1,7 +1,7 @@
 use yew::prelude::*;
 
-use crate::features::feed::components::{ComposeTweet, TweetCard};
-use crate::features::feed::hooks::use_tweets;
+use crate::features::tweets::components::{ComposeTweet, TweetCard};
+use crate::features::tweets::hooks::use_tweets;
 use crate::hooks::QueryState;
 
 #[function_component(HomePage)]

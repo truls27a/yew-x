@@ -1,5 +1,5 @@
 pub mod auth;
-pub mod feed;
+pub mod comments;
 pub mod notifications;
-pub mod profile;
-pub mod tweet;
+pub mod tweets;
+pub mod users;

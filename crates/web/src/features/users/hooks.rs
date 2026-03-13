@@ -1,4 +1,5 @@
-use crate::features::feed::types::{Tweet, User};
+use super::types::User;
+use crate::features::tweets::types::Tweet;
 use crate::hooks::QueryState;
 
 #[yew::prelude::hook]

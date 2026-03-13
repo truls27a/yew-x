@@ -1,9 +1,9 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-use crate::features::feed::components::TweetCard;
-use crate::features::profile::components::ProfileHeader;
-use crate::features::profile::hooks::use_profile;
+use crate::features::tweets::components::TweetCard;
+use crate::features::users::components::ProfileHeader;
+use crate::features::users::hooks::use_profile;
 use crate::hooks::QueryState;
 use crate::router::Route;
 

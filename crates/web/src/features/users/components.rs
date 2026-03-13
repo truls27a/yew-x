@@ -1,6 +1,6 @@
 use yew::prelude::*;
 
-use crate::features::feed::types::User;
+use super::types::User;
 
 #[derive(Properties, PartialEq)]
 pub struct ProfileHeaderProps {

@@ -1,8 +1,8 @@
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-use crate::features::tweet::components::TweetDetailView;
-use crate::features::tweet::hooks::use_tweet_detail;
+use crate::features::tweets::components::TweetDetailView;
+use crate::features::tweets::hooks::use_tweet_detail;
 use crate::hooks::QueryState;
 use crate::router::Route;
 
