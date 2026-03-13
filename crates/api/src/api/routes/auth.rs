@@ -8,6 +8,7 @@ use crate::api::schemas::{
 };
 use crate::application::auth::use_cases as auth_uc;
 use crate::application::users::use_cases as user_uc;
+use crate::infrastructure::shared::time::UtcClock;
 use crate::infrastructure::shared::unit_of_work::SqliteUnitOfWork;
 use crate::AppState;
 
@@ -16,7 +17,7 @@ pub async fn register(
     Json(body): Json<RegisterRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_pair = auth_uc::Register::new(uow, &state.jwt_secret)
+    let token_pair = auth_uc::Register::new(uow, &state.jwt_secret, UtcClock)
         .execute(&body.email, &body.password, &body.display_name)
         .await?;
 
@@ -31,7 +32,7 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_pair = auth_uc::Login::new(uow, &state.jwt_secret)
+    let token_pair = auth_uc::Login::new(uow, &state.jwt_secret, UtcClock)
         .execute(&body.email, &body.password)
         .await?;
 
@@ -46,7 +47,7 @@ pub async fn refresh(
     Json(body): Json<RefreshRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_pair = auth_uc::Refresh::new(uow, &state.jwt_secret)
+    let token_pair = auth_uc::Refresh::new(uow, &state.jwt_secret, UtcClock)
         .execute(&body.refresh_token)
         .await?;
 

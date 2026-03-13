@@ -5,7 +5,7 @@ pub struct TweetRow {
     pub id: String,
     pub user_id: String,
     pub content: String,
-    pub created_at: String,
+    pub created_at: i64,
     // Joined fields
     pub display_name: String,
     pub handle: String,

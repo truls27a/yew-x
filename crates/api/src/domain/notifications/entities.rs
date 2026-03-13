@@ -14,5 +14,5 @@ pub struct Notification {
     pub actor_handle: String,
     pub actor_avatar: String,
     pub content: Option<String>,
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: i64,
 }

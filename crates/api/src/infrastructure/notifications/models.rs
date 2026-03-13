@@ -8,5 +8,5 @@ pub struct NotificationRow {
     pub actor_handle: String,
     pub actor_avatar: String,
     pub content: Option<String>,
-    pub created_at: String,
+    pub created_at: i64,
 }

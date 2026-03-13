@@ -56,7 +56,7 @@ impl AuthRepository for SqliteAuthRepository {
         id: &str,
         identity_id: &str,
         token_hash: &str,
-        expires_at: &str,
+        expires_at: i64,
     ) -> Result<(), AppError> {
         let mut tx = self.tx.lock().await;
         sqlx::query("INSERT INTO sessions (id, identity_id, token_hash, expires_at) VALUES (?, ?, ?, ?)")

@@ -48,7 +48,7 @@ impl From<Tweet> for TweetResponse {
             id: t.id,
             user: UserResponse::from(t.user),
             content: t.content,
-            timestamp: relative_time(t.created_at),
+            timestamp: format_timestamp(t.created_at),
             likes: t.likes,
             retweets: t.retweets,
             replies: t.replies,
@@ -86,7 +86,7 @@ impl From<Notification> for NotificationResponse {
             actor_handle: n.actor_handle,
             actor_avatar: n.actor_avatar,
             content: n.content,
-            timestamp: relative_time(n.created_at),
+            timestamp: format_timestamp(n.created_at),
         }
     }
 }
@@ -126,17 +126,8 @@ pub struct TokenPairResponse {
     pub refresh_token: String,
 }
 
-fn relative_time(dt: chrono::NaiveDateTime) -> String {
-    let now = chrono::Utc::now().naive_utc();
-    let diff = now - dt;
-
-    if diff.num_minutes() < 1 {
-        "now".to_string()
-    } else if diff.num_hours() < 1 {
-        format!("{}m", diff.num_minutes())
-    } else if diff.num_days() < 1 {
-        format!("{}h", diff.num_hours())
-    } else {
-        format!("{}d", diff.num_days())
-    }
+fn format_timestamp(ts: i64) -> String {
+    chrono::DateTime::from_timestamp(ts, 0)
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_default()
 }

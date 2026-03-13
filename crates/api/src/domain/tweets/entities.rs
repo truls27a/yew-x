@@ -5,7 +5,7 @@ pub struct Tweet {
     pub id: String,
     pub user: User,
     pub content: String,
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: i64,
     pub likes: u32,
     pub retweets: u32,
     pub replies: u32,

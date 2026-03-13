@@ -1,5 +1,3 @@
-use chrono::NaiveDateTime;
-
 use crate::application::notifications::ports::NotificationRepository;
 use crate::domain::error::AppError;
 use crate::domain::notifications::entities::{Notification, NotificationType};
@@ -49,8 +47,7 @@ impl NotificationRepository for SqliteNotificationRepository {
                     actor_handle: r.actor_handle,
                     actor_avatar: r.actor_avatar,
                     content: r.content,
-                    created_at: NaiveDateTime::parse_from_str(&r.created_at, "%Y-%m-%d %H:%M:%S")
-                        .unwrap_or_default(),
+                    created_at: r.created_at,
                 }
             })
             .collect())

@@ -13,5 +13,5 @@ pub struct SessionRow {
     pub id: String,
     pub identity_id: String,
     pub token_hash: String,
-    pub expires_at: String,
+    pub expires_at: i64,
 }

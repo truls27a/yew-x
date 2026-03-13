@@ -1,5 +1,3 @@
-use chrono::NaiveDateTime;
-
 use crate::application::tweets::ports::TweetRepository;
 use crate::domain::error::AppError;
 use crate::domain::tweets::entities::Tweet;
@@ -32,8 +30,7 @@ fn row_to_tweet(row: TweetRow) -> Tweet {
             following: row.following as u32,
         },
         content: row.content,
-        created_at: NaiveDateTime::parse_from_str(&row.created_at, "%Y-%m-%d %H:%M:%S")
-            .unwrap_or_default(),
+        created_at: row.created_at,
         likes: row.like_count as u32,
         retweets: 0,
         replies: 0,

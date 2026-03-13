@@ -20,7 +20,7 @@ pub trait AuthRepository: Send + Sync {
         id: &str,
         identity_id: &str,
         token_hash: &str,
-        expires_at: &str,
+        expires_at: i64,
     ) -> impl std::future::Future<Output = Result<(), AppError>> + Send;
 
     fn find_session_by_token_hash(

@@ -2,12 +2,12 @@ use argon2::{
     password_hash::SaltString,
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
 };
-use chrono::Utc;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::ports::AuthRepository;
+use crate::application::shared::time::Clock;
 use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::application::users::ports::UserRepository;
 use crate::domain::error::AppError;
@@ -36,8 +36,9 @@ fn generate_token_pair(
     user_id: &str,
     identity_id: &str,
     jwt_secret: &str,
+    clock: &dyn Clock,
 ) -> Result<(TokenPair, String), AppError> {
-    let now = Utc::now().timestamp() as usize;
+    let now = clock.now() as usize;
 
     let access_claims = Claims {
         sub: user_id.to_string(),
@@ -84,13 +85,15 @@ pub fn decode_access_token(token: &str, jwt_secret: &str) -> Result<Claims, AppE
 pub struct Register<U: UnitOfWork> {
     uow: U,
     jwt_secret: String,
+    clock: Box<dyn Clock>,
 }
 
 impl<U: UnitOfWork> Register<U> {
-    pub fn new(uow: U, jwt_secret: &str) -> Self {
+    pub fn new(uow: U, jwt_secret: &str, clock: impl Clock + 'static) -> Self {
         Self {
             uow,
             jwt_secret: jwt_secret.to_string(),
+            clock: Box::new(clock),
         }
     }
 
@@ -137,14 +140,12 @@ impl<U: UnitOfWork> Register<U> {
 
         // Create session
         let (token_pair, refresh_hash) =
-            generate_token_pair(&user_id, &identity_id, &self.jwt_secret)?;
+            generate_token_pair(&user_id, &identity_id, &self.jwt_secret, &*self.clock)?;
         let session_id = uuid::Uuid::new_v4().to_string();
-        let expires_at = (Utc::now() + chrono::Duration::days(7))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
+        let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
             .auth()
-            .create_session(&session_id, &identity_id, &refresh_hash, &expires_at)
+            .create_session(&session_id, &identity_id, &refresh_hash, expires_at)
             .await?;
 
         self.uow.commit().await?;
@@ -156,13 +157,15 @@ impl<U: UnitOfWork> Register<U> {
 pub struct Login<U: UnitOfWork> {
     uow: U,
     jwt_secret: String,
+    clock: Box<dyn Clock>,
 }
 
 impl<U: UnitOfWork> Login<U> {
-    pub fn new(uow: U, jwt_secret: &str) -> Self {
+    pub fn new(uow: U, jwt_secret: &str, clock: impl Clock + 'static) -> Self {
         Self {
             uow,
             jwt_secret: jwt_secret.to_string(),
+            clock: Box::new(clock),
         }
     }
 
@@ -190,14 +193,12 @@ impl<U: UnitOfWork> Login<U> {
 
         // Create session
         let (token_pair, refresh_hash) =
-            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret)?;
+            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret, &*self.clock)?;
         let session_id = uuid::Uuid::new_v4().to_string();
-        let expires_at = (Utc::now() + chrono::Duration::days(7))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
+        let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
             .auth()
-            .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
+            .create_session(&session_id, &identity.id, &refresh_hash, expires_at)
             .await?;
 
         self.uow.commit().await?;
@@ -209,13 +210,15 @@ impl<U: UnitOfWork> Login<U> {
 pub struct Refresh<U: UnitOfWork> {
     uow: U,
     jwt_secret: String,
+    clock: Box<dyn Clock>,
 }
 
 impl<U: UnitOfWork> Refresh<U> {
-    pub fn new(uow: U, jwt_secret: &str) -> Self {
+    pub fn new(uow: U, jwt_secret: &str, clock: impl Clock + 'static) -> Self {
         Self {
             uow,
             jwt_secret: jwt_secret.to_string(),
+            clock: Box::new(clock),
         }
     }
 
@@ -231,13 +234,7 @@ impl<U: UnitOfWork> Refresh<U> {
             })?;
 
         // Check expiry
-        let expires_at =
-            chrono::NaiveDateTime::parse_from_str(&session.expires_at, "%Y-%m-%d %H:%M:%S")
-                .map_err(|e| AppError::Internal {
-                    message: "Invalid session expiry format".into(),
-                    source: Some(Box::new(e)),
-                })?;
-        if Utc::now().naive_utc() > expires_at {
+        if self.clock.now() > session.expires_at {
             self.uow.auth().delete_session(&session.id).await?;
             self.uow.commit().await?;
             return Err(AppError::Unauthorized {
@@ -260,14 +257,12 @@ impl<U: UnitOfWork> Refresh<U> {
             })?;
 
         let (token_pair, refresh_hash) =
-            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret)?;
+            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret, &*self.clock)?;
         let session_id = uuid::Uuid::new_v4().to_string();
-        let expires_at = (Utc::now() + chrono::Duration::days(7))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
+        let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
             .auth()
-            .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
+            .create_session(&session_id, &identity.id, &refresh_hash, expires_at)
             .await?;
 
         self.uow.commit().await?;
