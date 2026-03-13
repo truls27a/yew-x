@@ -6,10 +6,10 @@ use tokio::sync::Mutex;
 
 use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::domain::error::AppError;
-use crate::infrastructure::auth::repositories::SqliteAuthRepository;
-use crate::infrastructure::notifications::repositories::SqliteNotificationRepository;
-use crate::infrastructure::tweets::repositories::SqliteTweetRepository;
-use crate::infrastructure::users::repositories::SqliteUserRepository;
+use crate::infrastructure::auth::adapters::SqliteAuthRepository;
+use crate::infrastructure::notifications::adapters::SqliteNotificationRepository;
+use crate::infrastructure::tweets::adapters::SqliteTweetRepository;
+use crate::infrastructure::users::adapters::SqliteUserRepository;
 
 pub type SharedTx = Arc<Mutex<Transaction<'static, Sqlite>>>;
 
