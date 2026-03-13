@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::ports::AuthRepository;
+use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::application::users::ports::UserRepository;
 use crate::domain::error::AppError;
 
@@ -80,16 +81,15 @@ pub fn decode_access_token(token: &str, jwt_secret: &str) -> Result<Claims, AppE
     Ok(token_data.claims)
 }
 
-pub async fn register<A: AuthRepository, U: UserRepository>(
-    auth_repo: &A,
-    user_repo: &U,
+pub async fn register<U: UnitOfWork>(
+    uow: U,
     email: &str,
     password: &str,
     display_name: &str,
     jwt_secret: &str,
 ) -> Result<TokenPair, AppError> {
     // Check uniqueness
-    if auth_repo.find_identity_by_email(email).await?.is_some() {
+    if uow.auth().find_identity_by_email(email).await?.is_some() {
         return Err(AppError::Conflict {
             resource_type: "Identity",
             reason: "Email already registered",
@@ -111,13 +111,13 @@ pub async fn register<A: AuthRepository, U: UserRepository>(
     let user_id = uuid::Uuid::new_v4().to_string();
     let handle = email.split('@').next().unwrap_or("user");
     let avatar_url = format!("https://i.pravatar.cc/150?u={}", handle);
-    user_repo
+    uow.users()
         .create(&user_id, display_name, handle, &avatar_url)
         .await?;
 
     // Create identity
     let identity_id = uuid::Uuid::new_v4().to_string();
-    auth_repo
+    uow.auth()
         .create_identity(&identity_id, &user_id, email, &password_hash)
         .await?;
 
@@ -127,20 +127,23 @@ pub async fn register<A: AuthRepository, U: UserRepository>(
     let expires_at = (Utc::now() + chrono::Duration::days(7))
         .format("%Y-%m-%d %H:%M:%S")
         .to_string();
-    auth_repo
+    uow.auth()
         .create_session(&session_id, &identity_id, &refresh_hash, &expires_at)
         .await?;
+
+    uow.commit().await?;
 
     Ok(token_pair)
 }
 
-pub async fn login<A: AuthRepository>(
-    auth_repo: &A,
+pub async fn login<U: UnitOfWork>(
+    uow: U,
     email: &str,
     password: &str,
     jwt_secret: &str,
 ) -> Result<TokenPair, AppError> {
-    let identity = auth_repo
+    let identity = uow
+        .auth()
         .find_identity_by_email(email)
         .await?
         .ok_or(AppError::Unauthorized {
@@ -166,20 +169,23 @@ pub async fn login<A: AuthRepository>(
     let expires_at = (Utc::now() + chrono::Duration::days(7))
         .format("%Y-%m-%d %H:%M:%S")
         .to_string();
-    auth_repo
+    uow.auth()
         .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
         .await?;
+
+    uow.commit().await?;
 
     Ok(token_pair)
 }
 
-pub async fn refresh<A: AuthRepository>(
-    auth_repo: &A,
+pub async fn refresh<U: UnitOfWork>(
+    uow: U,
     refresh_token: &str,
     jwt_secret: &str,
 ) -> Result<TokenPair, AppError> {
     let token_hash = hash_token(refresh_token);
-    let session = auth_repo
+    let session = uow
+        .auth()
         .find_session_by_token_hash(&token_hash)
         .await?
         .ok_or(AppError::Unauthorized {
@@ -194,16 +200,18 @@ pub async fn refresh<A: AuthRepository>(
                 source: Some(Box::new(e)),
             })?;
     if Utc::now().naive_utc() > expires_at {
-        auth_repo.delete_session(&session.id).await?;
+        uow.auth().delete_session(&session.id).await?;
+        uow.commit().await?;
         return Err(AppError::Unauthorized {
             reason: "Refresh token expired",
         });
     }
 
     // Delete old session
-    auth_repo.delete_session(&session.id).await?;
+    uow.auth().delete_session(&session.id).await?;
 
-    let identity = auth_repo
+    let identity = uow
+        .auth()
         .find_identity_by_id(&session.identity_id)
         .await?
         .ok_or(AppError::NotFound {
@@ -218,9 +226,11 @@ pub async fn refresh<A: AuthRepository>(
     let expires_at = (Utc::now() + chrono::Duration::days(7))
         .format("%Y-%m-%d %H:%M:%S")
         .to_string();
-    auth_repo
+    uow.auth()
         .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
         .await?;
+
+    uow.commit().await?;
 
     Ok(token_pair)
 }

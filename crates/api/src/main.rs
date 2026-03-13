@@ -5,20 +5,13 @@ mod infrastructure;
 
 use axum::routing::{get, post};
 use axum::Router;
-use sqlx::sqlite::SqlitePoolOptions;
 use tower_http::cors::{Any, CorsLayer};
 
-use infrastructure::auth::repositories::SqliteAuthRepository;
-use infrastructure::notifications::repositories::SqliteNotificationRepository;
-use infrastructure::tweets::repositories::SqliteTweetRepository;
-use infrastructure::users::repositories::SqliteUserRepository;
+use infrastructure::shared::unit_of_work::DatabaseClient;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub user_repo: SqliteUserRepository,
-    pub tweet_repo: SqliteTweetRepository,
-    pub notification_repo: SqliteNotificationRepository,
-    pub auth_repo: SqliteAuthRepository,
+    pub db: DatabaseClient,
     pub jwt_secret: String,
 }
 
@@ -26,23 +19,12 @@ pub struct AppState {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect("sqlite:data.db?mode=rwc")
-        .await?;
-
-    infrastructure::shared::database::init_db(&pool).await?;
+    let db = DatabaseClient::create().await?;
 
     let jwt_secret =
         std::env::var("JWT_SECRET").unwrap_or_else(|_| "dev-secret-do-not-use-in-prod".to_string());
 
-    let state = AppState {
-        user_repo: SqliteUserRepository::new(pool.clone()),
-        tweet_repo: SqliteTweetRepository::new(pool.clone()),
-        notification_repo: SqliteNotificationRepository::new(pool.clone()),
-        auth_repo: SqliteAuthRepository::new(pool),
-        jwt_secret,
-    };
+    let state = AppState { db, jwt_secret };
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
