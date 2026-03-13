@@ -1,6 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::application::users::ports::UserRepository;
+use crate::domain::error::AppError;
 use crate::domain::users::entities::User;
 use super::models::UserRow;
 
@@ -16,7 +17,7 @@ impl SqliteUserRepository {
 }
 
 impl UserRepository for SqliteUserRepository {
-    async fn find_by_id(&self, id: &str) -> anyhow::Result<Option<User>> {
+    async fn find_by_id(&self, id: &str) -> Result<Option<User>, AppError> {
         let row: Option<UserRow> =
             sqlx::query_as("SELECT id, display_name, handle, avatar_url, bio, followers, following FROM users WHERE id = ?")
                 .bind(id)
@@ -40,7 +41,7 @@ impl UserRepository for SqliteUserRepository {
         display_name: &str,
         handle: &str,
         avatar_url: &str,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AppError> {
         sqlx::query("INSERT INTO users (id, display_name, handle, avatar_url) VALUES (?, ?, ?, ?)")
             .bind(id)
             .bind(display_name)

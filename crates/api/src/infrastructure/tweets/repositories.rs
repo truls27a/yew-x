@@ -2,6 +2,7 @@ use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 
 use crate::application::tweets::ports::TweetRepository;
+use crate::domain::error::AppError;
 use crate::domain::tweets::entities::Tweet;
 use crate::domain::users::entities::User;
 use super::models::TweetRow;
@@ -51,7 +52,7 @@ const TWEET_QUERY_BASE: &str = "
 ";
 
 impl TweetRepository for SqliteTweetRepository {
-    async fn find_all(&self, current_user_id: Option<&str>) -> anyhow::Result<Vec<Tweet>> {
+    async fn find_all(&self, current_user_id: Option<&str>) -> Result<Vec<Tweet>, AppError> {
         let query = format!("{TWEET_QUERY_BASE} ORDER BY t.created_at DESC");
         let rows: Vec<TweetRow> = sqlx::query_as(&query)
             .bind(current_user_id.unwrap_or(""))
@@ -64,7 +65,7 @@ impl TweetRepository for SqliteTweetRepository {
         &self,
         id: &str,
         current_user_id: Option<&str>,
-    ) -> anyhow::Result<Option<Tweet>> {
+    ) -> Result<Option<Tweet>, AppError> {
         let query = format!("{TWEET_QUERY_BASE} WHERE t.id = ?");
         let row: Option<TweetRow> = sqlx::query_as(&query)
             .bind(current_user_id.unwrap_or(""))
@@ -78,7 +79,7 @@ impl TweetRepository for SqliteTweetRepository {
         &self,
         user_id: &str,
         current_user_id: Option<&str>,
-    ) -> anyhow::Result<Vec<Tweet>> {
+    ) -> Result<Vec<Tweet>, AppError> {
         let query = format!("{TWEET_QUERY_BASE} WHERE t.user_id = ? ORDER BY t.created_at DESC");
         let rows: Vec<TweetRow> = sqlx::query_as(&query)
             .bind(current_user_id.unwrap_or(""))
@@ -88,7 +89,7 @@ impl TweetRepository for SqliteTweetRepository {
         Ok(rows.into_iter().map(row_to_tweet).collect())
     }
 
-    async fn create(&self, id: &str, user_id: &str, content: &str) -> anyhow::Result<()> {
+    async fn create(&self, id: &str, user_id: &str, content: &str) -> Result<(), AppError> {
         sqlx::query("INSERT INTO tweets (id, user_id, content) VALUES (?, ?, ?)")
             .bind(id)
             .bind(user_id)
@@ -98,7 +99,7 @@ impl TweetRepository for SqliteTweetRepository {
         Ok(())
     }
 
-    async fn toggle_like(&self, tweet_id: &str, user_id: &str) -> anyhow::Result<(bool, u32)> {
+    async fn toggle_like(&self, tweet_id: &str, user_id: &str) -> Result<(bool, u32), AppError> {
         let exists: bool =
             sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tweet_likes WHERE tweet_id = ? AND user_id = ?)")
                 .bind(tweet_id)

@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 
 use super::ports::AuthRepository;
 use crate::application::users::ports::UserRepository;
+use crate::domain::error::AppError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TokenPair {
@@ -34,7 +35,7 @@ fn generate_token_pair(
     user_id: &str,
     identity_id: &str,
     jwt_secret: &str,
-) -> anyhow::Result<(TokenPair, String)> {
+) -> Result<(TokenPair, String), AppError> {
     let now = Utc::now().timestamp() as usize;
 
     let access_claims = Claims {
@@ -48,7 +49,11 @@ fn generate_token_pair(
         &Header::default(),
         &access_claims,
         &EncodingKey::from_secret(jwt_secret.as_bytes()),
-    )?;
+    )
+    .map_err(|e| AppError::Internal {
+        message: "JWT encoding failed".into(),
+        source: Some(Box::new(e)),
+    })?;
 
     let refresh_token = uuid::Uuid::new_v4().to_string();
     let refresh_hash = hash_token(&refresh_token);
@@ -62,12 +67,16 @@ fn generate_token_pair(
     ))
 }
 
-pub fn decode_access_token(token: &str, jwt_secret: &str) -> anyhow::Result<Claims> {
+pub fn decode_access_token(token: &str, jwt_secret: &str) -> Result<Claims, AppError> {
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(jwt_secret.as_bytes()),
         &Validation::default(),
-    )?;
+    )
+    .map_err(|e| AppError::Internal {
+        message: "JWT decoding failed".into(),
+        source: Some(Box::new(e)),
+    })?;
     Ok(token_data.claims)
 }
 
@@ -78,10 +87,13 @@ pub async fn register<A: AuthRepository, U: UserRepository>(
     password: &str,
     display_name: &str,
     jwt_secret: &str,
-) -> anyhow::Result<TokenPair> {
+) -> Result<TokenPair, AppError> {
     // Check uniqueness
     if auth_repo.find_identity_by_email(email).await?.is_some() {
-        anyhow::bail!("Email already registered");
+        return Err(AppError::Conflict {
+            resource_type: "Identity",
+            reason: "Email already registered",
+        });
     }
 
     // Hash password
@@ -89,7 +101,10 @@ pub async fn register<A: AuthRepository, U: UserRepository>(
     let argon2 = Argon2::default();
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| anyhow::anyhow!("Password hash error: {e}"))?
+        .map_err(|e| AppError::Internal {
+            message: format!("Password hashing failed: {e}"),
+            source: None,
+        })?
         .to_string();
 
     // Create user
@@ -124,18 +139,25 @@ pub async fn login<A: AuthRepository>(
     email: &str,
     password: &str,
     jwt_secret: &str,
-) -> anyhow::Result<TokenPair> {
+) -> Result<TokenPair, AppError> {
     let identity = auth_repo
         .find_identity_by_email(email)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("Invalid email or password"))?;
+        .ok_or(AppError::Unauthorized {
+            reason: "Invalid credentials",
+        })?;
 
     // Verify password
-    let parsed_hash = PasswordHash::new(&identity.password_hash)
-        .map_err(|e| anyhow::anyhow!("Password hash error: {e}"))?;
+    let parsed_hash =
+        PasswordHash::new(&identity.password_hash).map_err(|e| AppError::Internal {
+            message: format!("Password hash parsing failed: {e}"),
+            source: None,
+        })?;
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
-        .map_err(|_| anyhow::anyhow!("Invalid email or password"))?;
+        .map_err(|_| AppError::Unauthorized {
+            reason: "Invalid credentials",
+        })?;
 
     // Create session
     let (token_pair, refresh_hash) =
@@ -155,35 +177,40 @@ pub async fn refresh<A: AuthRepository>(
     auth_repo: &A,
     refresh_token: &str,
     jwt_secret: &str,
-) -> anyhow::Result<TokenPair> {
+) -> Result<TokenPair, AppError> {
     let token_hash = hash_token(refresh_token);
     let session = auth_repo
         .find_session_by_token_hash(&token_hash)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("Invalid refresh token"))?;
+        .ok_or(AppError::Unauthorized {
+            reason: "Invalid refresh token",
+        })?;
 
     // Check expiry
     let expires_at =
         chrono::NaiveDateTime::parse_from_str(&session.expires_at, "%Y-%m-%d %H:%M:%S")
-            .map_err(|e| anyhow::anyhow!("Invalid expiry: {e}"))?;
+            .map_err(|e| AppError::Internal {
+                message: "Invalid session expiry format".into(),
+                source: Some(Box::new(e)),
+            })?;
     if Utc::now().naive_utc() > expires_at {
         auth_repo.delete_session(&session.id).await?;
-        anyhow::bail!("Refresh token expired");
+        return Err(AppError::Unauthorized {
+            reason: "Refresh token expired",
+        });
     }
 
-    // Find identity to get user_id
-    // We need to look up via identity_id from the session
     // Delete old session
     auth_repo.delete_session(&session.id).await?;
 
-    // Create new session — we need to decode identity_id from the session
-    // The session has identity_id, we need user_id. We'll get it from a separate lookup.
-    // For now, we'll store user_id in a way we can retrieve it. Let's extend AuthRepository.
-    // Actually, let's just decode the identity to get user_id.
     let identity = auth_repo
         .find_identity_by_id(&session.identity_id)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("Identity not found"))?;
+        .ok_or(AppError::NotFound {
+            resource_type: "Identity",
+            field: "id",
+            value: session.identity_id.clone(),
+        })?;
 
     let (token_pair, refresh_hash) =
         generate_token_pair(&identity.user_id, &identity.id, jwt_secret)?;

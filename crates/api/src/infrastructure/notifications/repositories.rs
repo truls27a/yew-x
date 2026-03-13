@@ -2,6 +2,7 @@ use chrono::NaiveDateTime;
 use sqlx::SqlitePool;
 
 use crate::application::notifications::ports::NotificationRepository;
+use crate::domain::error::AppError;
 use crate::domain::notifications::entities::{Notification, NotificationType};
 use super::models::NotificationRow;
 
@@ -17,7 +18,7 @@ impl SqliteNotificationRepository {
 }
 
 impl NotificationRepository for SqliteNotificationRepository {
-    async fn find_by_user_id(&self, user_id: &str) -> anyhow::Result<Vec<Notification>> {
+    async fn find_by_user_id(&self, user_id: &str) -> Result<Vec<Notification>, AppError> {
         let rows: Vec<NotificationRow> = sqlx::query_as(
             "SELECT n.id, n.notification_type, u.display_name as actor_name, u.handle as actor_handle, u.avatar_url as actor_avatar, n.content, n.created_at
              FROM notifications n

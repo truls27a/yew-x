@@ -1,7 +1,7 @@
 use axum::extract::{Path, State};
 use axum::Json;
 
-use crate::api::errors::AppError;
+use crate::api::errors::ApiError;
 use crate::api::middleware::OptionalCaller;
 use crate::api::schemas::{TweetResponse, UserResponse};
 use crate::application::users::use_cases;
@@ -11,12 +11,9 @@ use crate::AppState;
 pub async fn get_single_user(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<UserResponse>, AppError> {
+) -> Result<Json<UserResponse>, ApiError> {
     let uc = use_cases::GetUser::new(&state.user_repo);
-    let user = uc
-        .execute(&id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+    let user = uc.execute(&id).await?;
     Ok(Json(UserResponse::from(user)))
 }
 
@@ -24,7 +21,7 @@ pub async fn get_user_tweets_handler(
     OptionalCaller(caller): OptionalCaller,
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<Vec<TweetResponse>>, AppError> {
+) -> Result<Json<Vec<TweetResponse>>, ApiError> {
     let uc = tweet_use_cases::GetUserTweets::new(&state.tweet_repo);
     let user_id = caller.as_ref().map(|c| c.user_id.as_str());
     let tweets = uc.execute(&id, user_id).await?;

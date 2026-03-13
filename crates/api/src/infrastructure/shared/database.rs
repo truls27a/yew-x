@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
+pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -86,7 +86,7 @@ pub async fn init_db(pool: &SqlitePool) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn seed_data(pool: &SqlitePool) -> anyhow::Result<()> {
+async fn seed_data(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     // Users
     sqlx::query(
         "INSERT INTO users (id, display_name, handle, avatar_url, bio, followers, following) VALUES

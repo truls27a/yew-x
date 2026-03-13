@@ -2,6 +2,7 @@ use sqlx::SqlitePool;
 
 use crate::application::auth::ports::AuthRepository;
 use crate::domain::auth::entities::{Identity, Session};
+use crate::domain::error::AppError;
 use super::models::{IdentityRow, SessionRow};
 
 #[derive(Clone)]
@@ -16,7 +17,7 @@ impl SqliteAuthRepository {
 }
 
 impl AuthRepository for SqliteAuthRepository {
-    async fn find_identity_by_email(&self, email: &str) -> anyhow::Result<Option<Identity>> {
+    async fn find_identity_by_email(&self, email: &str) -> Result<Option<Identity>, AppError> {
         let row: Option<IdentityRow> =
             sqlx::query_as("SELECT id, user_id, email, password_hash FROM identities WHERE email = ?")
                 .bind(email)
@@ -37,7 +38,7 @@ impl AuthRepository for SqliteAuthRepository {
         user_id: &str,
         email: &str,
         password_hash: &str,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AppError> {
         sqlx::query("INSERT INTO identities (id, user_id, email, password_hash) VALUES (?, ?, ?, ?)")
             .bind(id)
             .bind(user_id)
@@ -54,7 +55,7 @@ impl AuthRepository for SqliteAuthRepository {
         identity_id: &str,
         token_hash: &str,
         expires_at: &str,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), AppError> {
         sqlx::query("INSERT INTO sessions (id, identity_id, token_hash, expires_at) VALUES (?, ?, ?, ?)")
             .bind(id)
             .bind(identity_id)
@@ -68,7 +69,7 @@ impl AuthRepository for SqliteAuthRepository {
     async fn find_session_by_token_hash(
         &self,
         token_hash: &str,
-    ) -> anyhow::Result<Option<Session>> {
+    ) -> Result<Option<Session>, AppError> {
         let row: Option<SessionRow> =
             sqlx::query_as("SELECT id, identity_id, token_hash, expires_at FROM sessions WHERE token_hash = ?")
                 .bind(token_hash)
@@ -83,7 +84,7 @@ impl AuthRepository for SqliteAuthRepository {
         }))
     }
 
-    async fn delete_session(&self, id: &str) -> anyhow::Result<()> {
+    async fn delete_session(&self, id: &str) -> Result<(), AppError> {
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
@@ -91,7 +92,7 @@ impl AuthRepository for SqliteAuthRepository {
         Ok(())
     }
 
-    async fn find_identity_by_id(&self, id: &str) -> anyhow::Result<Option<Identity>> {
+    async fn find_identity_by_id(&self, id: &str) -> Result<Option<Identity>, AppError> {
         let row: Option<IdentityRow> =
             sqlx::query_as("SELECT id, user_id, email, password_hash FROM identities WHERE id = ?")
                 .bind(id)
