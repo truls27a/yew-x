@@ -16,14 +16,9 @@ pub async fn register(
     Json(body): Json<RegisterRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_pair = auth_uc::register(
-        uow,
-        &body.email,
-        &body.password,
-        &body.display_name,
-        &state.jwt_secret,
-    )
-    .await?;
+    let token_pair = auth_uc::Register::new(uow, &state.jwt_secret)
+        .execute(&body.email, &body.password, &body.display_name)
+        .await?;
 
     Ok(Json(TokenPairResponse {
         access_token: token_pair.access_token,
@@ -36,13 +31,9 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_pair = auth_uc::login(
-        uow,
-        &body.email,
-        &body.password,
-        &state.jwt_secret,
-    )
-    .await?;
+    let token_pair = auth_uc::Login::new(uow, &state.jwt_secret)
+        .execute(&body.email, &body.password)
+        .await?;
 
     Ok(Json(TokenPairResponse {
         access_token: token_pair.access_token,
@@ -55,12 +46,9 @@ pub async fn refresh(
     Json(body): Json<RefreshRequest>,
 ) -> Result<Json<TokenPairResponse>, ApiError> {
     let uow = SqliteUnitOfWork::new(&state.db).await?;
-    let token_pair = auth_uc::refresh(
-        uow,
-        &body.refresh_token,
-        &state.jwt_secret,
-    )
-    .await?;
+    let token_pair = auth_uc::Refresh::new(uow, &state.jwt_secret)
+        .execute(&body.refresh_token)
+        .await?;
 
     Ok(Json(TokenPairResponse {
         access_token: token_pair.access_token,

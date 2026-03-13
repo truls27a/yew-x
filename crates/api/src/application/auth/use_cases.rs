@@ -81,156 +81,197 @@ pub fn decode_access_token(token: &str, jwt_secret: &str) -> Result<Claims, AppE
     Ok(token_data.claims)
 }
 
-pub async fn register<U: UnitOfWork>(
+pub struct Register<U: UnitOfWork> {
     uow: U,
-    email: &str,
-    password: &str,
-    display_name: &str,
-    jwt_secret: &str,
-) -> Result<TokenPair, AppError> {
-    // Check uniqueness
-    if uow.auth().find_identity_by_email(email).await?.is_some() {
-        return Err(AppError::Conflict {
-            resource_type: "Identity",
-            reason: "Email already registered",
-        });
+    jwt_secret: String,
+}
+
+impl<U: UnitOfWork> Register<U> {
+    pub fn new(uow: U, jwt_secret: &str) -> Self {
+        Self {
+            uow,
+            jwt_secret: jwt_secret.to_string(),
+        }
     }
 
-    // Hash password
-    let salt = SaltString::generate(&mut rand::thread_rng());
-    let argon2 = Argon2::default();
-    let password_hash = argon2
-        .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| AppError::Internal {
-            message: format!("Password hashing failed: {e}"),
-            source: None,
-        })?
-        .to_string();
+    pub async fn execute(
+        self,
+        email: &str,
+        password: &str,
+        display_name: &str,
+    ) -> Result<TokenPair, AppError> {
+        // Check uniqueness
+        if self.uow.auth().find_identity_by_email(email).await?.is_some() {
+            return Err(AppError::Conflict {
+                resource_type: "Identity",
+                reason: "Email already registered",
+            });
+        }
 
-    // Create user
-    let user_id = uuid::Uuid::new_v4().to_string();
-    let handle = email.split('@').next().unwrap_or("user");
-    let avatar_url = format!("https://i.pravatar.cc/150?u={}", handle);
-    uow.users()
-        .create(&user_id, display_name, handle, &avatar_url)
-        .await?;
-
-    // Create identity
-    let identity_id = uuid::Uuid::new_v4().to_string();
-    uow.auth()
-        .create_identity(&identity_id, &user_id, email, &password_hash)
-        .await?;
-
-    // Create session
-    let (token_pair, refresh_hash) = generate_token_pair(&user_id, &identity_id, jwt_secret)?;
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let expires_at = (Utc::now() + chrono::Duration::days(7))
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
-    uow.auth()
-        .create_session(&session_id, &identity_id, &refresh_hash, &expires_at)
-        .await?;
-
-    uow.commit().await?;
-
-    Ok(token_pair)
-}
-
-pub async fn login<U: UnitOfWork>(
-    uow: U,
-    email: &str,
-    password: &str,
-    jwt_secret: &str,
-) -> Result<TokenPair, AppError> {
-    let identity = uow
-        .auth()
-        .find_identity_by_email(email)
-        .await?
-        .ok_or(AppError::Unauthorized {
-            reason: "Invalid credentials",
-        })?;
-
-    // Verify password
-    let parsed_hash =
-        PasswordHash::new(&identity.password_hash).map_err(|e| AppError::Internal {
-            message: format!("Password hash parsing failed: {e}"),
-            source: None,
-        })?;
-    Argon2::default()
-        .verify_password(password.as_bytes(), &parsed_hash)
-        .map_err(|_| AppError::Unauthorized {
-            reason: "Invalid credentials",
-        })?;
-
-    // Create session
-    let (token_pair, refresh_hash) =
-        generate_token_pair(&identity.user_id, &identity.id, jwt_secret)?;
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let expires_at = (Utc::now() + chrono::Duration::days(7))
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
-    uow.auth()
-        .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
-        .await?;
-
-    uow.commit().await?;
-
-    Ok(token_pair)
-}
-
-pub async fn refresh<U: UnitOfWork>(
-    uow: U,
-    refresh_token: &str,
-    jwt_secret: &str,
-) -> Result<TokenPair, AppError> {
-    let token_hash = hash_token(refresh_token);
-    let session = uow
-        .auth()
-        .find_session_by_token_hash(&token_hash)
-        .await?
-        .ok_or(AppError::Unauthorized {
-            reason: "Invalid refresh token",
-        })?;
-
-    // Check expiry
-    let expires_at =
-        chrono::NaiveDateTime::parse_from_str(&session.expires_at, "%Y-%m-%d %H:%M:%S")
+        // Hash password
+        let salt = SaltString::generate(&mut rand::thread_rng());
+        let argon2 = Argon2::default();
+        let password_hash = argon2
+            .hash_password(password.as_bytes(), &salt)
             .map_err(|e| AppError::Internal {
-                message: "Invalid session expiry format".into(),
-                source: Some(Box::new(e)),
-            })?;
-    if Utc::now().naive_utc() > expires_at {
-        uow.auth().delete_session(&session.id).await?;
-        uow.commit().await?;
-        return Err(AppError::Unauthorized {
-            reason: "Refresh token expired",
-        });
+                message: format!("Password hashing failed: {e}"),
+                source: None,
+            })?
+            .to_string();
+
+        // Create user
+        let user_id = uuid::Uuid::new_v4().to_string();
+        let handle = email.split('@').next().unwrap_or("user");
+        let avatar_url = format!("https://i.pravatar.cc/150?u={}", handle);
+        self.uow
+            .users()
+            .create(&user_id, display_name, handle, &avatar_url)
+            .await?;
+
+        // Create identity
+        let identity_id = uuid::Uuid::new_v4().to_string();
+        self.uow
+            .auth()
+            .create_identity(&identity_id, &user_id, email, &password_hash)
+            .await?;
+
+        // Create session
+        let (token_pair, refresh_hash) =
+            generate_token_pair(&user_id, &identity_id, &self.jwt_secret)?;
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let expires_at = (Utc::now() + chrono::Duration::days(7))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        self.uow
+            .auth()
+            .create_session(&session_id, &identity_id, &refresh_hash, &expires_at)
+            .await?;
+
+        self.uow.commit().await?;
+
+        Ok(token_pair)
+    }
+}
+
+pub struct Login<U: UnitOfWork> {
+    uow: U,
+    jwt_secret: String,
+}
+
+impl<U: UnitOfWork> Login<U> {
+    pub fn new(uow: U, jwt_secret: &str) -> Self {
+        Self {
+            uow,
+            jwt_secret: jwt_secret.to_string(),
+        }
     }
 
-    // Delete old session
-    uow.auth().delete_session(&session.id).await?;
+    pub async fn execute(self, email: &str, password: &str) -> Result<TokenPair, AppError> {
+        let identity = self
+            .uow
+            .auth()
+            .find_identity_by_email(email)
+            .await?
+            .ok_or(AppError::Unauthorized {
+                reason: "Invalid credentials",
+            })?;
 
-    let identity = uow
-        .auth()
-        .find_identity_by_id(&session.identity_id)
-        .await?
-        .ok_or(AppError::NotFound {
-            resource_type: "Identity",
-            field: "id",
-            value: session.identity_id.clone(),
-        })?;
+        // Verify password
+        let parsed_hash =
+            PasswordHash::new(&identity.password_hash).map_err(|e| AppError::Internal {
+                message: format!("Password hash parsing failed: {e}"),
+                source: None,
+            })?;
+        Argon2::default()
+            .verify_password(password.as_bytes(), &parsed_hash)
+            .map_err(|_| AppError::Unauthorized {
+                reason: "Invalid credentials",
+            })?;
 
-    let (token_pair, refresh_hash) =
-        generate_token_pair(&identity.user_id, &identity.id, jwt_secret)?;
-    let session_id = uuid::Uuid::new_v4().to_string();
-    let expires_at = (Utc::now() + chrono::Duration::days(7))
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
-    uow.auth()
-        .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
-        .await?;
+        // Create session
+        let (token_pair, refresh_hash) =
+            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret)?;
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let expires_at = (Utc::now() + chrono::Duration::days(7))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        self.uow
+            .auth()
+            .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
+            .await?;
 
-    uow.commit().await?;
+        self.uow.commit().await?;
 
-    Ok(token_pair)
+        Ok(token_pair)
+    }
+}
+
+pub struct Refresh<U: UnitOfWork> {
+    uow: U,
+    jwt_secret: String,
+}
+
+impl<U: UnitOfWork> Refresh<U> {
+    pub fn new(uow: U, jwt_secret: &str) -> Self {
+        Self {
+            uow,
+            jwt_secret: jwt_secret.to_string(),
+        }
+    }
+
+    pub async fn execute(self, refresh_token: &str) -> Result<TokenPair, AppError> {
+        let token_hash = hash_token(refresh_token);
+        let session = self
+            .uow
+            .auth()
+            .find_session_by_token_hash(&token_hash)
+            .await?
+            .ok_or(AppError::Unauthorized {
+                reason: "Invalid refresh token",
+            })?;
+
+        // Check expiry
+        let expires_at =
+            chrono::NaiveDateTime::parse_from_str(&session.expires_at, "%Y-%m-%d %H:%M:%S")
+                .map_err(|e| AppError::Internal {
+                    message: "Invalid session expiry format".into(),
+                    source: Some(Box::new(e)),
+                })?;
+        if Utc::now().naive_utc() > expires_at {
+            self.uow.auth().delete_session(&session.id).await?;
+            self.uow.commit().await?;
+            return Err(AppError::Unauthorized {
+                reason: "Refresh token expired",
+            });
+        }
+
+        // Delete old session
+        self.uow.auth().delete_session(&session.id).await?;
+
+        let identity = self
+            .uow
+            .auth()
+            .find_identity_by_id(&session.identity_id)
+            .await?
+            .ok_or(AppError::NotFound {
+                resource_type: "Identity",
+                field: "id",
+                value: session.identity_id.clone(),
+            })?;
+
+        let (token_pair, refresh_hash) =
+            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret)?;
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let expires_at = (Utc::now() + chrono::Duration::days(7))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        self.uow
+            .auth()
+            .create_session(&session_id, &identity.id, &refresh_hash, &expires_at)
+            .await?;
+
+        self.uow.commit().await?;
+
+        Ok(token_pair)
+    }
 }
