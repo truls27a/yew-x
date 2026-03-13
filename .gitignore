@@ -2,3 +2,6 @@
 /dist
 tailwind-output.css
 Cargo.lock
+*.db
+crates/web/dist/
+crates/web/tailwind-output.css
