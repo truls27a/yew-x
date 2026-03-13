@@ -1,5 +1,5 @@
 use super::types::{LoginRequest, MeResponse, RegisterRequest, TokenPair};
-use crate::shared::api::client;
+use crate::shared::api_client;
 
 pub fn get_token() -> Option<String> {
     let window = web_sys::window()?;
@@ -32,17 +32,17 @@ pub fn clear_tokens() {
 }
 
 pub async fn login(req: LoginRequest) -> Result<TokenPair, String> {
-    let pair = client::post::<_, TokenPair>("/api/auth/login", Some(&req)).await?;
+    let pair = api_client::post::<_, TokenPair>("/api/auth/login", Some(&req)).await?;
     save_tokens(&pair.access_token, &pair.refresh_token);
     Ok(pair)
 }
 
 pub async fn register(req: RegisterRequest) -> Result<TokenPair, String> {
-    let pair = client::post::<_, TokenPair>("/api/auth/register", Some(&req)).await?;
+    let pair = api_client::post::<_, TokenPair>("/api/auth/register", Some(&req)).await?;
     save_tokens(&pair.access_token, &pair.refresh_token);
     Ok(pair)
 }
 
 pub async fn get_me() -> Result<MeResponse, String> {
-    client::get::<MeResponse>("/api/auth/me").await
+    api_client::get::<MeResponse>("/api/auth/me").await
 }

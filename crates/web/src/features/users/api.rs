@@ -1,10 +1,10 @@
 use super::types::User;
 use crate::features::tweets::api::get_tweets_by_user;
 use crate::features::tweets::types::Tweet;
-use crate::shared::api::client;
+use crate::shared::api_client;
 
 pub async fn get_user_by_id(user_id: &str) -> Result<User, String> {
-    client::get::<User>(&format!("/api/users/{user_id}")).await
+    api_client::get::<User>(&format!("/api/users/{user_id}")).await
 }
 
 pub async fn get_profile(user_id: &str) -> Result<Option<(User, Vec<Tweet>)>, String> {

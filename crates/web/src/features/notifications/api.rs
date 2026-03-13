@@ -1,6 +1,6 @@
 use super::types::Notification;
-use crate::shared::api::client;
+use crate::shared::api_client;
 
 pub async fn get_notifications() -> Result<Vec<Notification>, String> {
-    client::get::<Vec<Notification>>("/api/notifications").await
+    api_client::get::<Vec<Notification>>("/api/notifications").await
 }
