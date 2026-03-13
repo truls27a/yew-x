@@ -1,5 +1,25 @@
+use serde::{Deserialize, Serialize};
+
 use crate::domain::auth::entities::{Identity, Session};
 use crate::domain::error::AppError;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenPayload {
+    pub sub: String,
+    pub identity_id: String,
+    pub exp: usize,
+    pub iat: usize,
+}
+
+pub trait HashPort: Send + Sync {
+    fn hash(&self, password: &str) -> Result<String, AppError>;
+    fn verify(&self, password: &str, hash: &str) -> Result<bool, AppError>;
+}
+
+pub trait TokenPort: Send + Sync {
+    fn encode(&self, sub: &str, identity_id: &str, iat: usize, exp: usize) -> Result<String, AppError>;
+    fn decode(&self, token: &str) -> Result<TokenPayload, AppError>;
+}
 
 pub trait AuthRepository: Send + Sync {
     fn find_identity_by_email(

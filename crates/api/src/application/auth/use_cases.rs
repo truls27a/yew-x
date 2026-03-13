@@ -1,12 +1,7 @@
-use argon2::{
-    password_hash::SaltString,
-    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
-};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::ports::AuthRepository;
+use super::ports::{AuthRepository, HashPort, TokenPort};
 use crate::application::shared::time::Clock;
 use crate::application::shared::unit_of_work::UnitOfWork;
 use crate::application::users::ports::UserRepository;
@@ -18,81 +13,30 @@ pub struct TokenPair {
     pub refresh_token: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: String,
-    pub identity_id: String,
-    pub exp: usize,
-    pub iat: usize,
-}
-
-fn hash_token(token: &str) -> String {
+fn hash_refresh_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     format!("{:x}", hasher.finalize())
 }
 
-fn generate_token_pair(
-    user_id: &str,
-    identity_id: &str,
-    jwt_secret: &str,
-    clock: &dyn Clock,
-) -> Result<(TokenPair, String), AppError> {
-    let now = clock.now() as usize;
-
-    let access_claims = Claims {
-        sub: user_id.to_string(),
-        identity_id: identity_id.to_string(),
-        exp: now + 15 * 60, // 15 minutes
-        iat: now,
-    };
-
-    let access_token = encode(
-        &Header::default(),
-        &access_claims,
-        &EncodingKey::from_secret(jwt_secret.as_bytes()),
-    )
-    .map_err(|e| AppError::Internal {
-        message: "JWT encoding failed".into(),
-        source: Some(Box::new(e)),
-    })?;
-
-    let refresh_token = uuid::Uuid::new_v4().to_string();
-    let refresh_hash = hash_token(&refresh_token);
-
-    Ok((
-        TokenPair {
-            access_token,
-            refresh_token,
-        },
-        refresh_hash,
-    ))
-}
-
-pub fn decode_access_token(token: &str, jwt_secret: &str) -> Result<Claims, AppError> {
-    let token_data = decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(jwt_secret.as_bytes()),
-        &Validation::default(),
-    )
-    .map_err(|e| AppError::Internal {
-        message: "JWT decoding failed".into(),
-        source: Some(Box::new(e)),
-    })?;
-    Ok(token_data.claims)
-}
-
-pub struct Register<U: UnitOfWork> {
+pub struct Register<'a, U: UnitOfWork> {
     uow: U,
-    jwt_secret: String,
+    hasher: &'a dyn HashPort,
+    token_port: &'a dyn TokenPort,
     clock: Box<dyn Clock>,
 }
 
-impl<U: UnitOfWork> Register<U> {
-    pub fn new(uow: U, jwt_secret: &str, clock: impl Clock + 'static) -> Self {
+impl<'a, U: UnitOfWork> Register<'a, U> {
+    pub fn new(
+        uow: U,
+        hasher: &'a dyn HashPort,
+        token_port: &'a dyn TokenPort,
+        clock: impl Clock + 'static,
+    ) -> Self {
         Self {
             uow,
-            jwt_secret: jwt_secret.to_string(),
+            hasher,
+            token_port,
             clock: Box::new(clock),
         }
     }
@@ -112,15 +56,7 @@ impl<U: UnitOfWork> Register<U> {
         }
 
         // Hash password
-        let salt = SaltString::generate(&mut rand::thread_rng());
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| AppError::Internal {
-                message: format!("Password hashing failed: {e}"),
-                source: None,
-            })?
-            .to_string();
+        let password_hash = self.hasher.hash(password)?;
 
         // Create user
         let user_id = uuid::Uuid::new_v4().to_string();
@@ -139,8 +75,10 @@ impl<U: UnitOfWork> Register<U> {
             .await?;
 
         // Create session
-        let (token_pair, refresh_hash) =
-            generate_token_pair(&user_id, &identity_id, &self.jwt_secret, &*self.clock)?;
+        let now = self.clock.now() as usize;
+        let access_token = self.token_port.encode(&user_id, &identity_id, now, now + 15 * 60)?;
+        let refresh_token = uuid::Uuid::new_v4().to_string();
+        let refresh_hash = hash_refresh_token(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
@@ -150,21 +88,31 @@ impl<U: UnitOfWork> Register<U> {
 
         self.uow.commit().await?;
 
-        Ok(token_pair)
+        Ok(TokenPair {
+            access_token,
+            refresh_token,
+        })
     }
 }
 
-pub struct Login<U: UnitOfWork> {
+pub struct Login<'a, U: UnitOfWork> {
     uow: U,
-    jwt_secret: String,
+    hasher: &'a dyn HashPort,
+    token_port: &'a dyn TokenPort,
     clock: Box<dyn Clock>,
 }
 
-impl<U: UnitOfWork> Login<U> {
-    pub fn new(uow: U, jwt_secret: &str, clock: impl Clock + 'static) -> Self {
+impl<'a, U: UnitOfWork> Login<'a, U> {
+    pub fn new(
+        uow: U,
+        hasher: &'a dyn HashPort,
+        token_port: &'a dyn TokenPort,
+        clock: impl Clock + 'static,
+    ) -> Self {
         Self {
             uow,
-            jwt_secret: jwt_secret.to_string(),
+            hasher,
+            token_port,
             clock: Box::new(clock),
         }
     }
@@ -180,20 +128,18 @@ impl<U: UnitOfWork> Login<U> {
             })?;
 
         // Verify password
-        let parsed_hash =
-            PasswordHash::new(&identity.password_hash).map_err(|e| AppError::Internal {
-                message: format!("Password hash parsing failed: {e}"),
-                source: None,
-            })?;
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed_hash)
-            .map_err(|_| AppError::Unauthorized {
+        let valid = self.hasher.verify(password, &identity.password_hash)?;
+        if !valid {
+            return Err(AppError::Unauthorized {
                 reason: "Invalid credentials",
-            })?;
+            });
+        }
 
         // Create session
-        let (token_pair, refresh_hash) =
-            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret, &*self.clock)?;
+        let now = self.clock.now() as usize;
+        let access_token = self.token_port.encode(&identity.user_id, &identity.id, now, now + 15 * 60)?;
+        let refresh_token = uuid::Uuid::new_v4().to_string();
+        let refresh_hash = hash_refresh_token(&refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
@@ -203,27 +149,30 @@ impl<U: UnitOfWork> Login<U> {
 
         self.uow.commit().await?;
 
-        Ok(token_pair)
+        Ok(TokenPair {
+            access_token,
+            refresh_token,
+        })
     }
 }
 
-pub struct Refresh<U: UnitOfWork> {
+pub struct Refresh<'a, U: UnitOfWork> {
     uow: U,
-    jwt_secret: String,
+    token_port: &'a dyn TokenPort,
     clock: Box<dyn Clock>,
 }
 
-impl<U: UnitOfWork> Refresh<U> {
-    pub fn new(uow: U, jwt_secret: &str, clock: impl Clock + 'static) -> Self {
+impl<'a, U: UnitOfWork> Refresh<'a, U> {
+    pub fn new(uow: U, token_port: &'a dyn TokenPort, clock: impl Clock + 'static) -> Self {
         Self {
             uow,
-            jwt_secret: jwt_secret.to_string(),
+            token_port,
             clock: Box::new(clock),
         }
     }
 
     pub async fn execute(self, refresh_token: &str) -> Result<TokenPair, AppError> {
-        let token_hash = hash_token(refresh_token);
+        let token_hash = hash_refresh_token(refresh_token);
         let session = self
             .uow
             .auth()
@@ -256,8 +205,10 @@ impl<U: UnitOfWork> Refresh<U> {
                 value: session.identity_id.clone(),
             })?;
 
-        let (token_pair, refresh_hash) =
-            generate_token_pair(&identity.user_id, &identity.id, &self.jwt_secret, &*self.clock)?;
+        let now = self.clock.now() as usize;
+        let access_token = self.token_port.encode(&identity.user_id, &identity.id, now, now + 15 * 60)?;
+        let new_refresh_token = uuid::Uuid::new_v4().to_string();
+        let refresh_hash = hash_refresh_token(&new_refresh_token);
         let session_id = uuid::Uuid::new_v4().to_string();
         let expires_at = self.clock.now() + 7 * 24 * 3600;
         self.uow
@@ -267,6 +218,9 @@ impl<U: UnitOfWork> Refresh<U> {
 
         self.uow.commit().await?;
 
-        Ok(token_pair)
+        Ok(TokenPair {
+            access_token,
+            refresh_token: new_refresh_token,
+        })
     }
 }
