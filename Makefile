@@ -2,7 +2,7 @@
 
 # Run the API server on :3000
 api:
-	cargo run -p api
+	cargo run -p yew-x-api
 
 # Run the frontend dev server on :8080
 web:
